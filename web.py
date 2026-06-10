@@ -6356,8 +6356,8 @@ CATALOGO_HTML = """<!DOCTYPE html>
 
     function montarLinkWA(){
       const linhas = _cart.map(c=>c.tipo==='comprar'
-        ? `🎲 ${c.nome} — Comprar`
-        : `🎲 ${c.nome} — Alugar ${c.dias} dia${c.dias>1?"s":""}`);
+        ? `${c.nome} — Comprar`
+        : `${c.nome} — Alugar ${c.dias} dia${c.dias>1?"s":""}`);
       const msg = `Olá! Gostaria de fazer um pedido:\\n\\n${linhas.join('\\n')}`;
       return `https://wa.me/${WA}?text=${encodeURIComponent(msg)}`;
     }
