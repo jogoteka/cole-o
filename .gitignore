@@ -1,0 +1,6 @@
+jogos.db
+imagens/
+notas/
+__pycache__/
+*.pyc
+.env
