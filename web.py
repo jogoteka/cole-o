@@ -6821,7 +6821,7 @@ ADMIN_HTML = """<!DOCTYPE html>
       <h2>📝 Modelo de Contrato de Locação</h2>
       <div style="display:flex;gap:.6rem">
         <a href="/api/contrato-modelo/preview" target="_blank" class="btn-add" style="background:rgba(123,32,225,.3);border-color:rgba(123,32,225,.6);text-decoration:none">👁 Preview PDF</a>
-        <button class="btn-add" onclick="salvarModelo()">💾 Salvar Modelo de Texto</button>
+        <button class="btn-add" onclick="salvarModelo(this)">💾 Salvar Modelo de Texto</button>
       </div>
     </div>
     <div style="background:#16213e;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:1rem;margin-bottom:1rem">
@@ -7168,18 +7168,17 @@ function inserirCampo(campo){
   setTimeout(()=>btn.style.background='rgba(237,148,14,.15)', 600);
 }
 
-async function salvarModelo(){
+async function salvarModelo(btn){
   const clausulas = document.getElementById('textarea-modelo').value.trim();
-  if(!clausulas){ alert('O modelo não pode ficar vazio.'); return; }
+  if(!clausulas){ toast('O modelo não pode ficar vazio.', true); return; }
+  if(btn){ const orig = btn.textContent; btn.disabled = true; btn.textContent = '⏳ Salvando...';
+    var _restore = ()=>{ btn.disabled=false; btn.textContent=orig; }; }
   const r = await api('/contrato-modelo',{method:'POST',body:JSON.stringify({clausulas})});
+  if(btn) _restore();
   if(r && r.ok){
-    const btn = event.target;
-    const orig = btn.textContent;
-    btn.textContent = '✓ Salvo!';
-    btn.style.background = '#17C629';
-    setTimeout(()=>{ btn.textContent = orig; btn.style.background = ''; }, 2000);
+    toast('✅ Modelo salvo com sucesso!');
   } else {
-    alert('Erro ao salvar: '+(r&&r.error ? r.error : 'tente novamente'));
+    toast('Erro ao salvar: '+(r&&r.error ? r.error : 'tente novamente'), true);
   }
 }
 
