@@ -7400,8 +7400,8 @@ async function verificarClicksZap(){
   // Conectividade
   if(r.api_ok && r.api_token_valido){
     html += `<span style="color:#4ade80">✅ API acessível e token válido</span>
-      <br><span style="color:var(--muted);font-size:.79rem">Tudo configurado! Contratos serão enviados via WhatsApp ao criar solicitação de assinatura.</span>`;
-    document.getElementById('cz-teste-box').style.display = 'none';
+      <br><span style="color:var(--muted);font-size:.79rem">Tudo configurado! Contratos e lembretes serão enviados via WhatsApp.</span>`;
+    document.getElementById('cz-teste-box').style.display = 'flex';
   } else if(!r.api_token_valido){
     html += `<span style="color:var(--red)">❌ Token inválido ou expirado (HTTP ${r.api_status})</span>
       <br><span style="color:var(--muted);font-size:.79rem">Acesse <strong>${r.url}/panel/api-token</strong> e atualize o <strong>CLICKSZAP_TOKEN</strong> no Render.</span>`;
