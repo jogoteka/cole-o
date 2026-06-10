@@ -4126,7 +4126,7 @@ function adicionarJogoAoGrupo(){
   renderLocGrupo();
   // Abre picker para o próximo jogo
   const jaNoGrupo   = _locGrupo.map(i=>i.jogo.id);
-  const disponiveis = todosJogos.filter(j=>j.estoque>0 && !jaNoGrupo.includes(j.id));
+  const disponiveis = todosJogos.filter(j=>j.quantidade>0 && !jaNoGrupo.includes(j.id));
   const sel = document.getElementById('loc-select-jogo');
   sel.innerHTML = '<option value="">— Selecione o jogo —</option>' +
     disponiveis.map(j=>`<option value="${j.id}">${j.nome}</option>`).join('');
