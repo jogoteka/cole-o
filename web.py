@@ -7380,20 +7380,46 @@ async function verificarClicksZap(){
   if(r.error){ el.innerHTML=`<span style="color:var(--red)">❌ Erro: ${r.error}</span>`; return; }
 
   let html = '';
-  if(r.token_configurado){
-    html += `<span style="color:#4ade80">✅ Token configurado</span> <span style="color:var(--muted);font-size:.78rem">(${r.token_preview})</span> &nbsp;·&nbsp; `;
-    if(r.api_ok)
-      html += `<span style="color:#4ade80">✅ API acessível</span>`;
-    else if(r.api_erro)
-      html += `<span style="color:var(--red)">❌ API inacessível: ${r.api_erro}</span>`;
-    else
-      html += `<span style="color:var(--orange)">⚠️ HTTP ${r.api_status}</span>`;
-    document.getElementById('cz-teste-box').style.display = 'flex';
-  } else {
-    html = `<span style="color:var(--red)">❌ CLICKSZAP_TOKEN não configurado no Railway.</span>
-      <br><span style="color:var(--muted);font-size:.79rem">Acesse o Railway → Variables → adicione CLICKSZAP_TOKEN com o token da sua conta ClicksZap.</span>`;
+
+  if(!r.token_configurado){
+    html = `<span style="color:var(--red)">❌ CLICKSZAP_TOKEN não configurado.</span>
+      <br><span style="color:var(--muted);font-size:.79rem">Railway → Variables → adicione <strong>CLICKSZAP_TOKEN</strong> com o token da sua conta ClicksZap.</span>`;
     document.getElementById('cz-teste-box').style.display = 'none';
+    el.innerHTML = html; return;
   }
+
+  // URL em uso
+  const urlLabel = r.url_env
+    ? `<code style="font-size:.78rem">${r.url}</code>`
+    : `<code style="font-size:.78rem">${r.url}</code> <span style="color:var(--orange)">(padrão — verifique se é a URL correta da sua instância)</span>`;
+  html += `<div style="margin-bottom:.4rem">🔗 URL em uso: ${urlLabel}</div>`;
+
+  // Token
+  html += `<span style="color:#4ade80">✅ Token configurado</span> <span style="color:var(--muted);font-size:.78rem">(${r.token_preview})</span> &nbsp;·&nbsp; `;
+
+  // Conectividade
+  if(r.api_ok && r.api_token_valido){
+    html += `<span style="color:#4ade80">✅ API acessível e token válido</span>`;
+    document.getElementById('cz-teste-box').style.display = 'flex';
+  } else if(r.api_ok && !r.api_token_valido){
+    html += `<span style="color:var(--red)">❌ Token inválido ou expirado (HTTP ${r.api_status})</span>
+      <br><span style="color:var(--muted);font-size:.79rem">Gere um novo token em clickszap.com.br/panel/api-token</span>`;
+    document.getElementById('cz-teste-box').style.display = 'none';
+  } else if(r.api_erro && r.api_erro.includes('timed out')){
+    html += `<span style="color:var(--red)">❌ Timeout — URL provavelmente incorreta</span>
+      <br><span style="color:var(--muted);font-size:.79rem">
+      A URL <strong>${r.url}</strong> não respondeu.<br>
+      Acesse sua conta no ClicksZap → configurações → copie a URL base da API e adicione como variável
+      <strong>CLICKSZAP_URL</strong> no Railway.</span>`;
+    document.getElementById('cz-teste-box').style.display = 'none';
+  } else if(r.api_erro){
+    html += `<span style="color:var(--red)">❌ Erro: ${r.api_erro}</span>`;
+    document.getElementById('cz-teste-box').style.display = 'none';
+  } else {
+    html += `<span style="color:var(--orange)">⚠️ HTTP ${r.api_status}</span>`;
+    document.getElementById('cz-teste-box').style.display = 'flex';
+  }
+
   el.innerHTML = html;
 }
 
@@ -7689,20 +7715,32 @@ def api_clickszap_status():
         "token_configurado": bool(token),
         "token_preview": (token[:4] + "..." + token[-4:]) if len(token) > 8 else ("***" if token else ""),
         "url": ct.CLICKSZAP_URL,
+        "url_env": os.environ.get("CLICKSZAP_URL", ""),  # vazio = usando padrão
     }
     if token:
         try:
             import httpx as _hx
-            resp = _hx.get(
-                f"{ct.CLICKSZAP_URL}/signature-requests",
-                headers={"Authorization": f"Bearer {token}"},
-                timeout=8,
+            # Testa o endpoint /messages (POST leve) com body vazio — retorna 422/400, não timeout
+            resp = _hx.post(
+                f"{ct.CLICKSZAP_URL}/messages",
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                content=b"{}",
+                timeout=10,
                 follow_redirects=True,
             )
             info["api_status"] = resp.status_code
-            info["api_ok"] = resp.status_code in (200, 201, 404)  # 404 = endpoint existe mas sem resultados
+            # 400/422 = endpoint existe (parâmetros inválidos) → API ok
+            # 401/403 = token inválido
+            # 200/201 = ok
+            info["api_ok"] = resp.status_code in (200, 201, 400, 422)
+            info["api_token_valido"] = resp.status_code not in (401, 403)
+            try:
+                info["api_resp"] = resp.json()
+            except Exception:
+                info["api_resp"] = resp.text[:200]
         except Exception as e:
             info["api_status"] = None
+            info["api_ok"] = False
             info["api_erro"] = str(e)
     return jsonify(info)
 
