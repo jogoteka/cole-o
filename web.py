@@ -6356,9 +6356,9 @@ CATALOGO_HTML = """<!DOCTYPE html>
 
     function montarLinkWA(){
       const linhas = _cart.map(c=>c.tipo==='comprar'
-        ? `🎲 *${c.nome}* — Comprar (${fmtVal(c.valor)})`
-        : `🎲 *${c.nome}* — Alugar ${c.dias} dia${c.dias>1?"s":""} (${fmtVal(c.valor)})`);
-      const msg = `Olá! Gostaria de fazer um pedido:\\n\\n${linhas.join('\\n')}\\n\\nPoderia confirmar a disponibilidade?`;
+        ? `🎲 ${c.nome} — Comprar`
+        : `🎲 ${c.nome} — Alugar ${c.dias} dia${c.dias>1?"s":""}`);
+      const msg = `Olá! Gostaria de fazer um pedido:\\n\\n${linhas.join('\\n')}`;
       return `https://wa.me/${WA}?text=${encodeURIComponent(msg)}`;
     }
 
