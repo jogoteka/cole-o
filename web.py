@@ -7415,6 +7415,16 @@ async function verificarClicksZap(){
   } else if(r.api_erro){
     html += `<span style="color:var(--red)">❌ Erro: ${r.api_erro}</span>`;
     document.getElementById('cz-teste-box').style.display = 'none';
+  } else if(r.api_status === 404){
+    html += `<span style="color:var(--orange)">⚠️ Servidor acessível, mas caminho da API não encontrado (404)</span>
+      <br><span style="color:var(--muted);font-size:.79rem">
+      A URL <strong>${r.url}</strong> responde, mas o endpoint <code>/messages</code> não existe nela.<br>
+      Você precisa configurar a URL correta da API no Railway:<br>
+      1. Acesse sua conta ClicksZap → <strong>Configurações → API / Webhooks</strong><br>
+      2. Copie a <strong>URL base da API</strong> (ex: <code>https://api.clickszap.com.br</code> ou similar)<br>
+      3. Adicione no Railway → Variables: <strong>CLICKSZAP_URL</strong> = essa URL
+      </span>`;
+    document.getElementById('cz-teste-box').style.display = 'none';
   } else {
     html += `<span style="color:var(--orange)">⚠️ HTTP ${r.api_status}</span>`;
     document.getElementById('cz-teste-box').style.display = 'flex';
