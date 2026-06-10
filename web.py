@@ -3315,8 +3315,27 @@ LOJA_HTML = """<!DOCTYPE html>
           </div>
         </div>
         <hr class="divider">
-        <div class="section-label">Opção de locação</div>
+        <!-- ── Grupo multi-locação ──────────────────────────────────── -->
+        <div id="loc-grupo-section" style="display:none">
+          <div class="section-label" style="margin-bottom:.4rem">Jogos no grupo</div>
+          <div id="loc-grupo-lista" style="display:flex;flex-direction:column;gap:.35rem;margin-bottom:.6rem"></div>
+          <hr class="divider">
+        </div>
+        <!-- Picker para escolher próximo jogo (modo grupo) -->
+        <div id="loc-picker-box" style="display:none;margin-bottom:.5rem">
+          <div class="section-label" style="margin-bottom:.3rem">Adicionar jogo</div>
+          <select id="loc-select-jogo" style="width:100%" onchange="trocarJogoLocacao(this.value)">
+            <option value="">— Selecione o jogo —</option>
+          </select>
+        </div>
+        <div class="section-label" id="loc-jogo-titulo">Opção de locação</div>
         <div class="loc-opcoes" id="loc-opcoes"></div>
+        <button type="button" id="btn-add-loc-grupo" onclick="adicionarJogoAoGrupo()"
+          style="display:none;margin-top:.5rem;width:100%;background:rgba(99,102,241,.12);
+                 border:1.5px dashed rgba(99,102,241,.4);color:#a5b4fc;padding:.45rem;
+                 border-radius:8px;cursor:pointer;font-size:.82rem;font-weight:700">
+          ＋ Adicionar outro jogo
+        </button>
         <div style="margin-top:.8rem" class="row2">
           <div><label>Data de saída</label><input id="l-saida" type="date" oninput="calcDevolucao()"></div>
           <div><label>Devolução prevista</label><input id="l-prevista" readonly style="color:var(--orange)"></div>
@@ -3416,6 +3435,7 @@ LOJA_HTML = """<!DOCTYPE html>
 let jogoAtual = null;
 let tabAtual = 'venda';
 let locOpcaoSel = null;
+let _locGrupo   = []; // jogos acumulados no modo multi-locação
 let locacaoDevId = null;
 let locacaoDevDados = null;
 let todosJogos = [];
@@ -3773,6 +3793,12 @@ function abrirModal(id){
   document.getElementById('desc-loc-pct').style.display='none';
   document.getElementById('desc-loc-cupom').style.display='none';
   locOpcaoSel=null;
+  // Reset grupo de locação
+  _locGrupo = [];
+  document.getElementById('loc-grupo-section').style.display = 'none';
+  document.getElementById('loc-picker-box').style.display    = 'none';
+  document.getElementById('btn-add-loc-grupo').style.display = 'none';
+  document.getElementById('loc-jogo-titulo').textContent     = jogoAtual.nome;
 
   // Opções de locação
   const ops = [[jogoAtual.loc1_dias,jogoAtual.loc1_valor],
@@ -4002,6 +4028,7 @@ function selOpcao(el, dias, valor){
   document.querySelectorAll('.loc-op').forEach(o=>o.classList.remove('sel'));
   el.classList.add('sel');
   locOpcaoSel = {dias, valor};
+  document.getElementById('btn-add-loc-grupo').style.display = 'block';
   calcDevolucao();
   calcLocacao();
   if(jogoAtual?.multa_dia){
@@ -4069,50 +4096,138 @@ async function confirmarVenda(){
   loadCatalogo();
 }
 
+// ── Multi-locação ────────────────────────────────────────────────────────────
+function renderLocGrupo(){
+  const sec   = document.getElementById('loc-grupo-section');
+  const lista = document.getElementById('loc-grupo-lista');
+  if(!_locGrupo.length){ sec.style.display='none'; return; }
+  sec.style.display = 'block';
+  lista.innerHTML = _locGrupo.map((item,i)=>`
+    <div style="background:#16213e;border:1px solid rgba(255,255,255,.08);border-radius:8px;
+                padding:.4rem .75rem;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <span style="font-weight:700;font-size:.85rem">${item.jogo.nome}</span>
+        <span style="color:var(--muted);font-size:.77rem;margin-left:.5rem">
+          ${item.dias} dia${item.dias>1?'s':''} — ${fmt(item.valor)}</span>
+      </div>
+      <button onclick="removerDoGrupo(${i})"
+        style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.85rem;padding:.2rem .4rem">✕</button>
+    </div>`).join('');
+}
+
+function adicionarJogoAoGrupo(){
+  if(!locOpcaoSel){ toast('Selecione uma opção de locação primeiro',true); return; }
+  _locGrupo.push({jogo:jogoAtual, dias:locOpcaoSel.dias, valor:locOpcaoSel.valor});
+  jogoAtual=null; locOpcaoSel=null;
+  document.getElementById('loc-opcoes').innerHTML    = '';
+  document.getElementById('btn-add-loc-grupo').style.display = 'none';
+  document.getElementById('resumo-locacao').style.display    = 'none';
+  document.getElementById('multa-info').style.display        = 'none';
+  renderLocGrupo();
+  // Abre picker para o próximo jogo
+  const jaNoGrupo   = _locGrupo.map(i=>i.jogo.id);
+  const disponiveis = todosJogos.filter(j=>j.estoque>0 && !jaNoGrupo.includes(j.id));
+  const sel = document.getElementById('loc-select-jogo');
+  sel.innerHTML = '<option value="">— Selecione o jogo —</option>' +
+    disponiveis.map(j=>`<option value="${j.id}">${j.nome}</option>`).join('');
+  sel.value = '';
+  document.getElementById('loc-picker-box').style.display  = 'block';
+  document.getElementById('loc-jogo-titulo').textContent   = 'Opção de locação';
+}
+
+function removerDoGrupo(idx){
+  _locGrupo.splice(idx,1);
+  renderLocGrupo();
+}
+
+function trocarJogoLocacao(id){
+  if(!id) return;
+  jogoAtual = todosJogos.find(j=>j.id==id);
+  if(!jogoAtual) return;
+  locOpcaoSel = null;
+  document.getElementById('loc-jogo-titulo').textContent    = jogoAtual.nome;
+  document.getElementById('loc-picker-box').style.display   = 'none';
+  document.getElementById('btn-add-loc-grupo').style.display = 'none';
+  const ops = [[jogoAtual.loc1_dias,jogoAtual.loc1_valor],
+               [jogoAtual.loc2_dias,jogoAtual.loc2_valor],
+               [jogoAtual.loc3_dias,jogoAtual.loc3_valor]].filter(([d,v])=>d&&v!=null);
+  document.getElementById('loc-opcoes').innerHTML = ops.length
+    ? ops.map(([d,v])=>`
+        <div class="loc-op" data-dias="${d}" data-valor="${v}" onclick="selOpcao(this,${d},${v})">
+          <div class="dias">${d}</div><div class="dlab">dia${d>1?'s':''}</div>
+          <div class="val">${fmt(v)}</div></div>`).join('')
+    : '<p style="color:#666;font-size:.85rem">Nenhuma opção de locação cadastrada.</p>';
+}
+
 async function confirmarLocacao(){
-  if(!jogoAtual){ toast('Nenhum jogo selecionado',true); return; }
-  if(!locOpcaoSel){ toast('Selecione uma opção de locação',true); return; }
-  const base = locOpcaoSel.valor;
-  const desc = Math.min(calcDescontoLoc(base), base);
-  const valorFinal = Math.max(0, base - desc);
-  const obsBase = document.getElementById('l-obs').value||'';
-  const obsDesc = cupomCodigoLoc ? `Cupom: ${cupomCodigoLoc}` : (descTipoLoc==='pct'&&desc>0?`Desconto ${document.getElementById('l-desconto-p').value}%`:'');
-  const body = {
-    jogo_id: jogoAtual.id,
-    opcao_dias: locOpcaoSel.dias,
-    valor_locacao: valorFinal,
-    data_saida: document.getElementById('l-saida').value,
-    forma_pagamento: document.getElementById('l-pagamento').value||null,
-    atendente: document.getElementById('l-atendente').value||null,
-    observacao: [obsBase, obsDesc].filter(Boolean).join(' | ')||null,
-    cliente:{
-      nome: document.getElementById('l-nome').value,
-      cpf: document.getElementById('l-cpf').value,
-      data_nascimento: document.getElementById('l-nasc').value||null,
-      instagram: document.getElementById('l-insta').value||null,
-      telefone: document.getElementById('l-tel').value||null,
-      cep: document.getElementById('l-cep').value||null,
-      logradouro: document.getElementById('l-logradouro').value||null,
-      numero: document.getElementById('l-numero').value||null,
-      complemento: document.getElementById('l-complemento').value||null,
-      bairro: document.getElementById('l-bairro').value||null,
-      cidade: document.getElementById('l-cidade').value||null,
-      estado: document.getElementById('l-estado').value||null,
-    }
-  };
-  const res = await api('/loja/locacao',{method:'POST',body:JSON.stringify(body)});
-  if(res.error){ toast(res.error,true); return; }
-  if(cupomObjLoc && desc>0){
-    await api('/cupons/usar',{method:'POST',body:JSON.stringify({
-      cupom_id: cupomObjLoc.id, tipo_operacao:'locacao', referencia_id: res.locacao_id||null,
-      valor_desconto: desc,
-      cliente_nome: document.getElementById('l-nome').value||null,
-      jogo_nome: jogoAtual.nome
-    })});
+  // Coleta todos os jogos: grupo acumulado + jogo atual (se opção selecionada)
+  const todos = [..._locGrupo];
+  if(jogoAtual && locOpcaoSel) todos.push({jogo:jogoAtual, dias:locOpcaoSel.dias, valor:locOpcaoSel.valor});
+
+  if(!todos.length){
+    if(!jogoAtual){ toast('Nenhum jogo selecionado',true); return; }
+    toast('Selecione uma opção de locação',true); return;
   }
-  closeModal('modal-op');
-  toast(`✔ Locação registrada! Devolução em ${fmtData(res.data_prevista)}`);
-  loadCatalogo();
+
+  const clienteData = {
+    nome:            document.getElementById('l-nome').value,
+    cpf:             document.getElementById('l-cpf').value,
+    data_nascimento: document.getElementById('l-nasc').value||null,
+    instagram:       document.getElementById('l-insta').value||null,
+    telefone:        document.getElementById('l-tel').value||null,
+    cep:             document.getElementById('l-cep').value||null,
+    logradouro:      document.getElementById('l-logradouro').value||null,
+    numero:          document.getElementById('l-numero').value||null,
+    complemento:     document.getElementById('l-complemento').value||null,
+    bairro:          document.getElementById('l-bairro').value||null,
+    cidade:          document.getElementById('l-cidade').value||null,
+    estado:          document.getElementById('l-estado').value||null,
+  };
+
+  if(todos.length === 1 && _locGrupo.length === 0){
+    // ── Fluxo single (original — com suporte a desconto/cupom) ─────────
+    const base = locOpcaoSel.valor;
+    const desc = Math.min(calcDescontoLoc(base), base);
+    const valorFinal = Math.max(0, base - desc);
+    const obsBase = document.getElementById('l-obs').value||'';
+    const obsDesc = cupomCodigoLoc ? `Cupom: ${cupomCodigoLoc}` : (descTipoLoc==='pct'&&desc>0?`Desconto ${document.getElementById('l-desconto-p').value}%`:'');
+    const body = {
+      jogo_id: jogoAtual.id, opcao_dias: locOpcaoSel.dias, valor_locacao: valorFinal,
+      data_saida: document.getElementById('l-saida').value,
+      forma_pagamento: document.getElementById('l-pagamento').value||null,
+      atendente: document.getElementById('l-atendente').value||null,
+      observacao: [obsBase,obsDesc].filter(Boolean).join(' | ')||null,
+      cliente: clienteData,
+    };
+    const res = await api('/loja/locacao',{method:'POST',body:JSON.stringify(body)});
+    if(res.error){ toast(res.error,true); return; }
+    if(cupomObjLoc && desc>0){
+      await api('/cupons/usar',{method:'POST',body:JSON.stringify({
+        cupom_id: cupomObjLoc.id, tipo_operacao:'locacao', referencia_id: res.locacao_id||null,
+        valor_desconto: desc, cliente_nome: clienteData.nome, jogo_nome: jogoAtual.nome
+      })});
+    }
+    closeModal('modal-op'); _locGrupo=[];
+    toast(`✔ Locação registrada! Devolução em ${fmtData(res.data_prevista)}`);
+    loadCatalogo();
+  } else {
+    // ── Fluxo batch (múltiplos jogos — um único contrato) ───────────────
+    const body = {
+      jogos: todos.map(item=>({
+        jogo_id: item.jogo.id, opcao_dias: item.dias, valor_locacao: item.valor,
+      })),
+      data_saida:      document.getElementById('l-saida').value,
+      forma_pagamento: document.getElementById('l-pagamento').value||null,
+      atendente:       document.getElementById('l-atendente').value||null,
+      observacao:      document.getElementById('l-obs').value||null,
+      cliente:         clienteData,
+    };
+    const res = await api('/loja/locacao/grupo',{method:'POST',body:JSON.stringify(body)});
+    if(res.error){ toast(res.error,true); return; }
+    closeModal('modal-op'); _locGrupo=[];
+    toast(`✔ ${todos.length} locações registradas! Devolução em ${fmtData(res.data_prevista)}`);
+    loadCatalogo();
+  }
 }
 
 // ── Devoluções ─────────────────────────────────────────────────────────────────
@@ -4553,6 +4668,59 @@ def api_locacao():
                     _log.error("[contrato-auto] Locação #%d erro inesperado: %s", locacao_id, e)
             threading.Thread(target=_enviar_contrato_bg, daemon=True).start()
         return jsonify(res)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/loja/locacao/grupo", methods=["POST"])
+@requer_perfil("admin", "gerente", "vendedor")
+def api_locacao_grupo():
+    """Registra múltiplos jogos em locação para o mesmo cliente/data, enviando UM único contrato."""
+    try:
+        data       = request.get_json()
+        jogos      = data.get("jogos", [])
+        if not jogos:
+            return jsonify({"error": "Informe ao menos um jogo"}), 400
+        cliente    = data.get("cliente", {})
+        data_saida = data.get("data_saida")
+        pagamento  = data.get("forma_pagamento")
+        atendente  = data.get("atendente")
+        observacao = data.get("observacao")
+
+        locacao_ids, ultima_res = [], None
+        for jogo in jogos:
+            res = lj.registrar_locacao({
+                "jogo_id":         jogo["jogo_id"],
+                "opcao_dias":      jogo["opcao_dias"],
+                "valor_locacao":   jogo["valor_locacao"],
+                "data_saida":      data_saida,
+                "forma_pagamento": pagamento,
+                "atendente":       atendente,
+                "observacao":      observacao,
+                "cliente":         cliente,
+            })
+            locacao_ids.append(res["locacao_id"])
+            ultima_res = res
+
+        # Um único contrato cobrindo todos os jogos do grupo
+        if ct._get_token() and locacao_ids:
+            first_id = locacao_ids[0]
+            def _bg():
+                try:
+                    r = ct.enviar_contrato(first_id)
+                    if "error" in r:
+                        _log.warning("[contrato-grupo] %s", r["error"])
+                    else:
+                        _log.info("[contrato-grupo] contrato enviado — grupo %s", locacao_ids)
+                except Exception as exc:
+                    _log.error("[contrato-grupo] erro: %s", exc)
+            threading.Thread(target=_bg, daemon=True).start()
+
+        return jsonify({
+            "ok": True,
+            "locacao_ids": locacao_ids,
+            "data_prevista": ultima_res["data_prevista"] if ultima_res else None,
+        })
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
