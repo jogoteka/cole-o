@@ -602,7 +602,7 @@ def _gerar_folha_dados(locs) -> bytes:
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.units import cm
     from reportlab.lib.colors import HexColor
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable, Table, TableStyle
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable, Table, TableStyle, Image as RLImage
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.enums import TA_CENTER, TA_LEFT
 
@@ -652,8 +652,14 @@ def _gerar_folha_dados(locs) -> bytes:
         spaceBefore=0, spaceAfter=0)
 
     story = []
-    story.append(Paragraph(NOME_LOJA, h_loja))
-    story.append(Paragraph("Contrato de Locação de Jogo de Tabuleiro", h_sub))
+    _logo = os.path.join(os.path.dirname(os.path.abspath(__file__)), "jogoteka_colorido.png")
+    if os.path.exists(_logo):
+        _img = RLImage(_logo, width=6*cm, height=3*cm, kind="proportional")
+        _img.hAlign = "CENTER"
+        story.append(_img)
+        story.append(Spacer(1, 4))
+    else:
+        story.append(Paragraph(NOME_LOJA, h_loja))
     story.append(Paragraph(f"Contrato #{loc['id']:05d}  ·  Gerado em {datetime.now().strftime('%d/%m/%Y %H:%M')}", h_num))
     story.append(HRFlowable(width="100%", thickness=2, color=accent, spaceAfter=12, spaceBefore=8))
 
@@ -807,7 +813,7 @@ def gerar_pdf_contrato(locacao_id: int) -> bytes:
             from reportlab.lib.pagesizes import A4
             from reportlab.lib.units import cm
             from reportlab.lib.colors import HexColor
-            from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, HRFlowable)
+            from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, HRFlowable, Image as RLImage)
             from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
             from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
             import re
@@ -839,12 +845,15 @@ def gerar_pdf_contrato(locacao_id: int) -> bytes:
             topMargin=2.5*cm, bottomMargin=2.5*cm)
         story = []
 
-        story.append(Paragraph(NOME_LOJA, ParagraphStyle("hdr", parent=styles["Normal"],
-            fontName="Helvetica-Bold", fontSize=20, textColor=accent,
-            spaceBefore=0, spaceAfter=2, alignment=TA_CENTER)))
-        story.append(Paragraph("Contrato de Locação de Jogo de Tabuleiro",
-            ParagraphStyle("sub", parent=styles["Normal"],
-                fontName="Helvetica", fontSize=10, textColor=muted,
+        _logo = os.path.join(os.path.dirname(os.path.abspath(__file__)), "jogoteka_colorido.png")
+        if os.path.exists(_logo):
+            _img = RLImage(_logo, width=6*cm, height=3*cm, kind="proportional")
+            _img.hAlign = "CENTER"
+            story.append(_img)
+            story.append(Spacer(1, 6))
+        else:
+            story.append(Paragraph(NOME_LOJA, ParagraphStyle("hdr", parent=styles["Normal"],
+                fontName="Helvetica-Bold", fontSize=20, textColor=accent,
                 spaceBefore=0, spaceAfter=2, alignment=TA_CENTER)))
         story.append(HRFlowable(width="100%", thickness=1.5, color=accent, spaceAfter=10))
 
