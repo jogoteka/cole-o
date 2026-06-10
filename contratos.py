@@ -21,6 +21,7 @@ Campos disponíveis para o template (use {{CAMPO}} no texto):
 """
 import os
 import io
+import re
 import logging
 from datetime import datetime
 from typing import Optional
@@ -983,9 +984,11 @@ def enviar_contrato(locacao_id: int) -> dict:
     loc = locs[0]
 
     cliente_nome = loc.get("cliente_nome") or "Cliente"
-    cliente_tel  = (loc.get("cliente_tel") or "").replace(" ", "").replace("-", "")
+    cliente_tel  = re.sub(r'\D', '', loc.get("cliente_tel") or "")
     if not cliente_tel:
         return {"error": "Cliente sem telefone cadastrado — adicione o telefone antes de enviar o contrato"}
+    if not cliente_tel.startswith("55"):
+        cliente_tel = "55" + cliente_tel
 
     n_jogos = len(locs)
     nome_pdf = (f"Contrato_{loc['id']:05d}.pdf" if n_jogos == 1

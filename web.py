@@ -1,5 +1,6 @@
 import sys
 import os
+import re
 import uuid
 import secrets
 import threading
@@ -7088,6 +7089,25 @@ ADMIN_HTML = """<!DOCTYPE html>
   <!-- LEMBRETES WHATSAPP -->
   <div class="admin-page" id="apage-lembretes">
     <div style="max-width:780px">
+
+      <!-- ── Diagnóstico ClicksZap ──────────────────────────────────────── -->
+      <div style="background:#16213e;border:1px solid var(--border);border-radius:10px;padding:1rem;margin-bottom:1.4rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.7rem">
+          <span style="font-weight:700;font-size:.9rem">🔌 Integração ClicksZap</span>
+          <button class="btn-add" style="font-size:.78rem;padding:.3rem .8rem" onclick="verificarClicksZap()">🔍 Verificar</button>
+        </div>
+        <div id="cz-status" style="font-size:.82rem;color:var(--muted)">Clique em Verificar para checar a conexão.</div>
+        <div id="cz-teste-box" style="display:none;margin-top:.8rem;display:flex;gap:.5rem;flex-wrap:wrap">
+          <input id="cz-tel-teste" placeholder="Telefone para teste (ex: 51999998888)"
+            style="flex:1;min-width:200px;background:rgba(255,255,255,.06);border:1px solid var(--border);
+                   border-radius:6px;color:var(--text);padding:.4rem .7rem;font-size:.82rem">
+          <button class="btn-add" style="font-size:.78rem;padding:.4rem .8rem;background:rgba(37,211,102,.15);
+                  border-color:rgba(37,211,102,.4);color:#25D366" onclick="enviarTeste()">
+            💬 Enviar mensagem de teste
+          </button>
+        </div>
+      </div>
+
       <div class="toolbar" style="margin-bottom:1.2rem">
         <h2 style="margin:0">💬 Lembretes de Devolução — WhatsApp</h2>
         <div style="display:flex;gap:.6rem">
@@ -7350,6 +7370,39 @@ async function salvarModelo(btn){
   } else {
     toast('Erro ao salvar: '+(r&&r.error ? r.error : 'tente novamente'), true);
   }
+}
+
+// ── Diagnóstico ClicksZap ─────────────────────────────────────────────────────
+async function verificarClicksZap(){
+  const el = document.getElementById('cz-status');
+  el.textContent = '⏳ Verificando...';
+  const r = await api('/admin/clickszap/status');
+  if(r.error){ el.innerHTML=`<span style="color:var(--red)">❌ Erro: ${r.error}</span>`; return; }
+
+  let html = '';
+  if(r.token_configurado){
+    html += `<span style="color:#4ade80">✅ Token configurado</span> <span style="color:var(--muted);font-size:.78rem">(${r.token_preview})</span> &nbsp;·&nbsp; `;
+    if(r.api_ok)
+      html += `<span style="color:#4ade80">✅ API acessível</span>`;
+    else if(r.api_erro)
+      html += `<span style="color:var(--red)">❌ API inacessível: ${r.api_erro}</span>`;
+    else
+      html += `<span style="color:var(--orange)">⚠️ HTTP ${r.api_status}</span>`;
+    document.getElementById('cz-teste-box').style.display = 'flex';
+  } else {
+    html = `<span style="color:var(--red)">❌ CLICKSZAP_TOKEN não configurado no Railway.</span>
+      <br><span style="color:var(--muted);font-size:.79rem">Acesse o Railway → Variables → adicione CLICKSZAP_TOKEN com o token da sua conta ClicksZap.</span>`;
+    document.getElementById('cz-teste-box').style.display = 'none';
+  }
+  el.innerHTML = html;
+}
+
+async function enviarTeste(){
+  const tel = document.getElementById('cz-tel-teste').value.trim();
+  if(!tel){ toast('Informe um número de telefone', true); return; }
+  const r = await api('/admin/clickszap/teste-mensagem',{method:'POST',body:JSON.stringify({telefone:tel})});
+  if(r.error){ toast('Erro: '+r.error, true); return; }
+  toast('✅ Mensagem de teste enviada! Verifique o WhatsApp.');
 }
 
 // ── Lembretes WhatsApp ────────────────────────────────────────────────────────
@@ -7625,6 +7678,49 @@ def api_log_lembretes():
                FROM lembretes_log ORDER BY id DESC LIMIT 100"""
         ).fetchall()
     return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/admin/clickszap/status", methods=["GET"])
+@requer_login
+def api_clickszap_status():
+    """Retorna status da integração ClicksZap (token, URL, conectividade)."""
+    token = ct._get_token()
+    info = {
+        "token_configurado": bool(token),
+        "token_preview": (token[:4] + "..." + token[-4:]) if len(token) > 8 else ("***" if token else ""),
+        "url": ct.CLICKSZAP_URL,
+    }
+    if token:
+        try:
+            import httpx as _hx
+            resp = _hx.get(
+                f"{ct.CLICKSZAP_URL}/signature-requests",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=8,
+                follow_redirects=True,
+            )
+            info["api_status"] = resp.status_code
+            info["api_ok"] = resp.status_code in (200, 201, 404)  # 404 = endpoint existe mas sem resultados
+        except Exception as e:
+            info["api_status"] = None
+            info["api_erro"] = str(e)
+    return jsonify(info)
+
+
+@app.route("/api/admin/clickszap/teste-mensagem", methods=["POST"])
+@requer_login
+def api_clickszap_teste():
+    """Envia uma mensagem de teste via ClicksZap para validar a integração."""
+    d = request.get_json()
+    telefone = re.sub(r'\D', '', d.get("telefone") or "")
+    if not telefone:
+        return jsonify({"error": "Informe um número de telefone"}), 400
+    if not telefone.startswith("55"):
+        telefone = "55" + telefone
+    resultado = ct._enviar_mensagem_whatsapp(telefone, "✅ Teste de integração Jogoteka — ClicksZap funcionando!")
+    if resultado.get("ok"):
+        return jsonify({"ok": True, "mensagem": "Mensagem de teste enviada!"})
+    return jsonify({"error": resultado.get("error", "Erro desconhecido")}), 400
 
 
 # ── Gestão da Landing Page ─────────────────────────────────────────────────────
