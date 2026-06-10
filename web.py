@@ -4002,12 +4002,12 @@ async function aplicarCupomLoc(){
 }
 
 function calcLocacao(){
-  if(!locOpcaoSel) return;
-  const base = locOpcaoSel.valor;
+  const grupoTotal = _locGrupo.reduce((s,i)=>s+i.valor, 0);
+  const base = grupoTotal + (locOpcaoSel ? locOpcaoSel.valor : 0);
+  if(!base) return;
   const desc = Math.min(calcDescontoLoc(base), base);
   const total = Math.max(0, base - desc);
-  const resumo = document.getElementById('resumo-locacao');
-  resumo.style.display = 'block';
+  document.getElementById('resumo-locacao').style.display = 'block';
   document.getElementById('rl-valor').textContent = fmt(base);
   document.getElementById('rl-desconto').textContent = desc>0 ? '- '+fmt(desc) : '—';
   document.getElementById('rl-total').textContent = fmt(total);
@@ -4124,6 +4124,7 @@ function adicionarJogoAoGrupo(){
   document.getElementById('resumo-locacao').style.display    = 'none';
   document.getElementById('multa-info').style.display        = 'none';
   renderLocGrupo();
+  calcLocacao();
   // Abre picker para o próximo jogo
   const jaNoGrupo   = _locGrupo.map(i=>i.jogo.id);
   const disponiveis = todosJogos.filter(j=>j.quantidade>0 && !jaNoGrupo.includes(j.id));
@@ -4138,6 +4139,7 @@ function adicionarJogoAoGrupo(){
 function removerDoGrupo(idx){
   _locGrupo.splice(idx,1);
   renderLocGrupo();
+  calcLocacao();
 }
 
 function trocarJogoLocacao(id){
