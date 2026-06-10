@@ -56,7 +56,8 @@ CNPJ_LOJA     = os.environ.get("CNPJ_LOJA",     "")
 
 # ── Cláusulas padrão (usadas quando não há modelo salvo no banco) ─────────────
 
-CLAUSULAS_PADRAO = """{{NOME_LOJA}} — Contrato de Locação de Jogo de Tabuleiro #{{NUM_CONTRATO}}
+CLAUSULAS_PADRAO = """# Contrato de Locação de Jogo de Tabuleiro
+## {{NOME_LOJA}} — Contrato #{{NUM_CONTRATO}}
 
 1. LOCADORA
 Nome: {{NOME_LOJA}}
@@ -867,7 +868,19 @@ def gerar_pdf_contrato(locacao_id: int) -> bytes:
             _i += 1
 
             if not linha:
-                story.append(Spacer(1, 4)); continue
+                story.append(Spacer(1, 6)); continue
+
+            # Títulos centralizados: # Texto → H1 grande bold  |  ## Texto → H2 médio
+            if linha.startswith("## "):
+                story.append(Paragraph(linha[3:], ParagraphStyle("h2c", parent=normal,
+                    fontName="Helvetica-Bold", fontSize=12, leading=16,
+                    textColor=dark, spaceBefore=4, spaceAfter=6,
+                    alignment=TA_CENTER))); continue
+            if linha.startswith("# "):
+                story.append(Paragraph(linha[2:], ParagraphStyle("h1c", parent=normal,
+                    fontName="Helvetica-Bold", fontSize=16, leading=20,
+                    textColor=dark, spaceBefore=6, spaceAfter=4,
+                    alignment=TA_CENTER))); continue
 
             # Dupla linha de assinatura: dois grupos de ____ separados por espaços
             if re.search(r'_{10,}\s+_{10,}', linha):

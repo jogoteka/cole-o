@@ -6868,9 +6868,22 @@ ADMIN_HTML = """<!DOCTYPE html>
         <div style="display:flex;flex-wrap:wrap;gap:.4rem" id="campos-chips"></div>
       </div>
       <div style="background:#16213e;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:1rem">
-        <div style="font-size:.8rem;color:var(--muted);margin-bottom:.5rem">
+        <div style="font-size:.8rem;color:var(--muted);margin-bottom:.7rem">
           Modelo de texto do contrato. Cada linha vira um parágrafo no PDF.
-          Linhas que começam com <code>1.</code>, <code>2.</code> etc. são títulos de seção.
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.7rem;font-size:.78rem">
+          <span style="background:#16213e;border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:.25rem .6rem;color:#e0e0e0">
+            <code style="color:#ED940E"># Título</code> → centralizado grande
+          </span>
+          <span style="background:#16213e;border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:.25rem .6rem;color:#e0e0e0">
+            <code style="color:#ED940E">## Subtítulo</code> → centralizado médio
+          </span>
+          <span style="background:#16213e;border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:.25rem .6rem;color:#e0e0e0">
+            <code style="color:#ED940E">1. SEÇÃO</code> → título de seção
+          </span>
+          <span style="background:#16213e;border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:.25rem .6rem;color:#e0e0e0">
+            <code style="color:#ED940E">linha em branco</code> → espaçamento
+          </span>
         </div>
         <textarea id="textarea-modelo"
           style="width:100%;min-height:480px;background:#0d1117;border:1px solid rgba(255,255,255,.12);
