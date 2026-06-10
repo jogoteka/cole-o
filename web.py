@@ -7399,35 +7399,30 @@ async function verificarClicksZap(){
 
   // Conectividade
   if(r.api_ok && r.api_token_valido){
-    html += `<span style="color:#4ade80">✅ API acessível e token válido</span>`;
-    document.getElementById('cz-teste-box').style.display = 'flex';
-  } else if(r.api_ok && !r.api_token_valido){
+    html += `<span style="color:#4ade80">✅ API acessível e token válido</span>
+      <br><span style="color:var(--muted);font-size:.79rem">Tudo configurado! Contratos serão enviados via WhatsApp ao criar solicitação de assinatura.</span>`;
+    document.getElementById('cz-teste-box').style.display = 'none';
+  } else if(!r.api_token_valido){
     html += `<span style="color:var(--red)">❌ Token inválido ou expirado (HTTP ${r.api_status})</span>
-      <br><span style="color:var(--muted);font-size:.79rem">Gere um novo token em clickszap.com.br/panel/api-token</span>`;
+      <br><span style="color:var(--muted);font-size:.79rem">Acesse <strong>${r.url}/panel/api-token</strong> e atualize o <strong>CLICKSZAP_TOKEN</strong> no Render.</span>`;
     document.getElementById('cz-teste-box').style.display = 'none';
   } else if(r.api_erro && r.api_erro.includes('timed out')){
     html += `<span style="color:var(--red)">❌ Timeout — URL provavelmente incorreta</span>
       <br><span style="color:var(--muted);font-size:.79rem">
       A URL <strong>${r.url}</strong> não respondeu.<br>
-      Acesse sua conta no ClicksZap → configurações → copie a URL base da API e adicione como variável
-      <strong>CLICKSZAP_URL</strong> no Railway.</span>`;
+      Verifique a URL do seu serviço ClicksZap no Render e atualize a variável <strong>CLICKSZAP_URL</strong>.</span>`;
     document.getElementById('cz-teste-box').style.display = 'none';
   } else if(r.api_erro){
     html += `<span style="color:var(--red)">❌ Erro: ${r.api_erro}</span>`;
     document.getElementById('cz-teste-box').style.display = 'none';
   } else if(r.api_status === 404){
-    html += `<span style="color:var(--orange)">⚠️ Servidor acessível, mas caminho da API não encontrado (404)</span>
+    html += `<span style="color:var(--orange)">⚠️ Servidor acessível, mas endpoint não encontrado (404)</span>
       <br><span style="color:var(--muted);font-size:.79rem">
-      A URL <strong>${r.url}</strong> responde, mas o endpoint <code>/messages</code> não existe nela.<br>
-      Você precisa configurar a URL correta da API no Railway:<br>
-      1. Acesse sua conta ClicksZap → <strong>Configurações → API / Webhooks</strong><br>
-      2. Copie a <strong>URL base da API</strong> (ex: <code>https://api.clickszap.com.br</code> ou similar)<br>
-      3. Adicione no Railway → Variables: <strong>CLICKSZAP_URL</strong> = essa URL
-      </span>`;
+      Verifique se a URL <strong>${r.url}</strong> aponta para o serviço ClicksZap correto no Render.</span>`;
     document.getElementById('cz-teste-box').style.display = 'none';
   } else {
     html += `<span style="color:var(--orange)">⚠️ HTTP ${r.api_status}</span>`;
-    document.getElementById('cz-teste-box').style.display = 'flex';
+    document.getElementById('cz-teste-box').style.display = 'none';
   }
 
   el.innerHTML = html;
@@ -7730,19 +7725,16 @@ def api_clickszap_status():
     if token:
         try:
             import httpx as _hx
-            # Testa o endpoint /messages (POST leve) com body vazio — retorna 422/400, não timeout
-            resp = _hx.post(
-                f"{ct.CLICKSZAP_URL}/messages",
-                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-                content=b"{}",
+            # Testa GET /documents — lista documentos, retorna 200 com token válido
+            # 401/403 = token inválido | 200 = tudo ok
+            resp = _hx.get(
+                f"{ct.CLICKSZAP_URL}/documents",
+                headers={"Authorization": f"Bearer {token}"},
                 timeout=10,
                 follow_redirects=True,
             )
             info["api_status"] = resp.status_code
-            # 400/422 = endpoint existe (parâmetros inválidos) → API ok
-            # 401/403 = token inválido
-            # 200/201 = ok
-            info["api_ok"] = resp.status_code in (200, 201, 400, 422)
+            info["api_ok"] = resp.status_code in (200, 201)
             info["api_token_valido"] = resp.status_code not in (401, 403)
             try:
                 info["api_resp"] = resp.json()
