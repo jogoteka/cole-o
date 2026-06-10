@@ -857,10 +857,47 @@ def gerar_pdf_contrato(locacao_id: int) -> bytes:
                 spaceBefore=0, spaceAfter=2, alignment=TA_CENTER)))
         story.append(HRFlowable(width="100%", thickness=1.5, color=accent, spaceAfter=10))
 
-        for linha in texto_final.split("\n"):
-            linha = linha.rstrip()
+        from reportlab.platypus import Table as _SigTable, TableStyle as _SigStyle
+        s_sig = ParagraphStyle("sig", parent=assinatura, alignment=TA_CENTER)
+
+        _lines = texto_final.split("\n")
+        _i = 0
+        while _i < len(_lines):
+            linha = _lines[_i].rstrip()
+            _i += 1
+
             if not linha:
                 story.append(Spacer(1, 4)); continue
+
+            # Dupla linha de assinatura: dois grupos de ____ separados por espaços
+            if re.search(r'_{10,}\s+_{10,}', linha):
+                prox = _lines[_i].rstrip() if _i < len(_lines) else ""
+                tem_nomes = "Locadora" in prox or "Locatário" in prox or "Locatario" in prox
+                if tem_nomes:
+                    _i += 1  # consome a linha dos nomes junto
+                    partes = [p.strip() for p in re.split(r'\s{2,}', prox) if p.strip()]
+                else:
+                    partes = []
+                while len(partes) < 2:
+                    partes.append("")
+                esq, dir_ = partes[0], partes[-1]
+
+                sig_data = [
+                    [Paragraph("______________________________", s_sig),
+                     Paragraph("______________________________", s_sig)],
+                    [Paragraph(esq,  s_sig),
+                     Paragraph(dir_, s_sig)],
+                ]
+                t_sig = _SigTable(sig_data, colWidths=["50%", "50%"])
+                t_sig.setStyle(_SigStyle([
+                    ("VALIGN",        (0, 0), (-1, -1), "TOP"),
+                    ("TOPPADDING",    (0, 0), (-1, -1), 2),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ]))
+                story.append(Spacer(1, 20))
+                story.append(t_sig)
+                continue
+
             if linha.startswith("___"):
                 story.append(HRFlowable(width="45%", thickness=0.5, color=muted,
                                         spaceAfter=2, spaceBefore=8)); continue
