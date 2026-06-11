@@ -17,13 +17,20 @@ def buscar_jogo(jogo_id):
 
 
 def adicionar_jogo(dados):
+    # Normaliza cidades: aceita lista ou string CSV
+    cidades = dados.get("cidades")
+    if isinstance(cidades, list):
+        cidades = ",".join(cidades) or None
+    elif isinstance(cidades, str):
+        cidades = cidades.strip() or None
+
     sql = """
         INSERT INTO jogos
             (nome, editora, categoria, min_jogadores, max_jogadores,
              tempo_jogo, quantidade, quantidade_minima, preco_venda, imagem, video_url,
              loc1_dias, loc1_valor, loc2_dias, loc2_valor, loc3_dias, loc3_valor, multa_dia,
-             faixa_etaria, resumo, data_cadastro)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             faixa_etaria, resumo, destaque, em_destaque, cidades, data_cadastro)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
     with get_connection() as conn:
         cur = conn.execute(sql, (
@@ -40,6 +47,9 @@ def adicionar_jogo(dados):
             dados.get("multa_dia"),
             dados.get("faixa_etaria"),
             dados.get("resumo"),
+            dados.get("destaque"),
+            1 if dados.get("em_destaque") else 0,
+            cidades,
             _agora()
         ))
         jogo_id = cur.lastrowid
@@ -51,6 +61,14 @@ def adicionar_jogo(dados):
 
 
 def editar_jogo(jogo_id, dados):
+    # Normaliza cidades: aceita lista ou string CSV
+    if "cidades" in dados:
+        cidades = dados["cidades"]
+        if isinstance(cidades, list):
+            dados = {**dados, "cidades": ",".join(cidades) or None}
+        elif isinstance(cidades, str):
+            dados = {**dados, "cidades": cidades.strip() or None}
+
     campos = ["nome", "editora", "categoria", "min_jogadores",
               "max_jogadores", "tempo_jogo", "quantidade_minima", "preco_venda", "imagem", "video_url",
               "loc1_dias", "loc1_valor", "loc2_dias", "loc2_valor", "loc3_dias", "loc3_valor", "multa_dia",
