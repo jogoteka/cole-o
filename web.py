@@ -3441,6 +3441,7 @@ let locacaoDevId = null;
 let locacaoDevDados = null;
 let todosJogos = [];
 
+const CZ_URL = "{{ cz_url }}";
 const fmt = v => v!=null ? 'R$ '+Number(v).toFixed(2).replace('.',',') : '—';
 const fmtData = d => d ? d.slice(0,10).split('-').reverse().join('/') : '—';
 const hoje = () => new Date().toISOString().slice(0,10);
@@ -4213,6 +4214,7 @@ async function confirmarLocacao(){
     closeModal('modal-op'); _locGrupo=[];
     toast(`✔ Locação registrada! Devolução em ${fmtData(res.data_prevista)}`);
     loadCatalogo();
+    setTimeout(loadLocacoes, 2500); // aguarda o envio automático do contrato
   } else {
     // ── Fluxo batch (múltiplos jogos — um único contrato) ───────────────
     const body = {
@@ -4230,6 +4232,7 @@ async function confirmarLocacao(){
     closeModal('modal-op'); _locGrupo=[];
     toast(`✔ ${todos.length} locações registradas! Devolução em ${fmtData(res.data_prevista)}`);
     loadCatalogo();
+    setTimeout(loadLocacoes, 2500); // aguarda o envio automático do contrato
   }
 }
 
@@ -4340,6 +4343,18 @@ async function loadVendas(){
   }).join('');
 }
 
+async function _checarPendentes(rows){
+  const pendentes = rows.filter(r => r.contrato_status === 'pending');
+  if(!pendentes.length) return;
+  for(const r of pendentes){
+    const res = await api('/loja/locacoes/'+r.id+'/contrato-status');
+    if(res && res.status === 'signed'){
+      loadLocacoes(); // recarrega tudo ao encontrar o primeiro assinado
+      return;
+    }
+  }
+}
+
 async function loadLocacoes(){
   const rows = await api('/loja/locacoes');
   const tbody = document.getElementById('body-locacoes');
@@ -4401,6 +4416,8 @@ async function loadLocacoes(){
         <td style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center">${btnEditLoc}${btnExcluirLoc}${btnDev}${btnContrato}${btnAvaliacaoLoc}</td>
       </tr>`;
   }).join('');
+  // Checa silenciosamente se algum contrato pendente já foi assinado
+  setTimeout(() => _checarPendentes(rows), 1500);
 }
 
 async function excluirLocacao(id, jogoNome, clienteNome){
@@ -4423,7 +4440,7 @@ async function toggleRecebimento(tipo, id, recebido){
 function renderBtnContrato(r){
   var cs = r.contrato_status;
   if(cs === 'signed'){
-    return '<a class="btn-whatsapp" style="background:#17C629;font-size:.75rem" href="https://www.clickszap.com.br/s/'+r.contrato_token+'/download" target="_blank">📄 Assinado</a>';
+    return '<a class="btn-whatsapp" style="background:#17C629;font-size:.75rem" href="'+CZ_URL+'/s/'+r.contrato_token+'/download" target="_blank">📄 Assinado</a>';
   }
   if(cs === 'pending'){
     return '<button class="btn-devolver" style="font-size:.75rem;color:#ED940E;border-color:#ED940E" onclick="verStatusContrato('+r.id+')">⏳ Aguardando</button>';
@@ -4573,7 +4590,7 @@ loadCatalogo();
 
 @app.route("/loja")
 def loja():
-    return render_template_string(LOJA_HTML)
+    return render_template_string(LOJA_HTML, cz_url=ct.CLICKSZAP_URL)
 
 
 @app.route("/api/loja/venda/<int:venda_id>", methods=["PATCH"])
