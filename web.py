@@ -4362,10 +4362,7 @@ async function loadLocacoes(){
     const btnDev = r.status==='ativa'
       ? `<button class="btn-devolver" onclick='abrirDevolucao(${r.id},${dadosDev})'>Devolvido</button>` : '—';
 
-    // Botões WhatsApp
     const telLimpo = (r.cliente_tel||'').replace(/\D/g,'');
-    const btnWpp = (r.status==='ativa' && telLimpo)
-      ? `<a class="btn-whatsapp" href="${gerarLinkContrato(r)}" target="_blank">📲 Contrato</a>` : '';
     const btnAvaliacaoLoc = `<a class="btn-whatsapp" style="background:#4285F4" href="${gerarLinkAvaliacaoCliente(r.cliente_tel,r.cliente_nome,'locacao')}" target="_blank">⭐ Avaliação</a>`;
     const btnEditLoc = `<button class="btn-devolver" style="font-size:.75rem" onclick="abrirEdicao('locacao',${r.id},'${r.forma_pagamento||''}','${(r.atendente||'').replace(/'/g,"\\'")}','${(r.observacao||'').replace(/'/g,"\\'")}',${r.opcao_dias||0},'${r.data_saida||''}')">✏️</button>`;
     const btnExcluirLoc = `<button class="btn-devolver" style="font-size:.75rem;color:var(--red);border-color:var(--red)" onclick="excluirLocacao(${r.id},'${(r.jogo_nome||'').replace(/'/g,"\\'")}','${(r.cliente_nome||'').replace(/'/g,"\\'")}')">🗑️</button>`;
@@ -4401,7 +4398,7 @@ async function loadLocacoes(){
         <td style="color:var(--red)">${r.valor_multa?fmt(r.valor_multa):'—'}</td>
         <td>${condicaoHtml}</td>
         <td style="display:flex;gap:.3rem;align-items:center;flex-wrap:wrap">${badgeRecLoc}${btnToggleLoc}</td>
-        <td style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center">${btnEditLoc}${btnExcluirLoc}${btnDev}${btnContrato}${btnWpp}${btnAvaliacaoLoc}</td>
+        <td style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center">${btnEditLoc}${btnExcluirLoc}${btnDev}${btnContrato}${btnAvaliacaoLoc}</td>
       </tr>`;
   }).join('');
 }
@@ -4481,30 +4478,6 @@ function gerarLinkAvaliacaoCliente(tel, nomeCliente){
   return `${base}?text=${encodeURIComponent(msgAvaliacao(nomeCliente))}`;
 }
 
-function gerarLinkContrato(r){
-  const tel = (r.cliente_tel||'').replace(/\D/g,'');
-  const ddi = tel.startsWith('55') ? tel : '55'+tel;
-  const [ySaida,mSaida,dSaida] = (r.data_saida||'').split('-');
-  const [yPrev,mPrev,dPrev]   = (r.data_prevista||'').split('-');
-  const saida   = ySaida   ? `${dSaida}/${mSaida}/${ySaida}`   : '';
-  const prevista = yPrev   ? `${dPrev}/${mPrev}/${yPrev}`      : '';
-  const valor = r.valor_locacao!=null ? 'R$ '+(+r.valor_locacao).toFixed(2).replace('.',',') : '';
-  const msg =
-`📋 *Contrato de Locação — Jogoteka*
-
-🎲 *Jogo:* ${r.jogo_nome}
-👤 *Cliente:* ${r.cliente_nome||'—'}
-📅 *Retirada:* ${saida}
-📅 *Devolução prevista:* ${prevista}
-💰 *Valor:* ${valor}
-
-⚠️ Em caso de atraso na devolução, será cobrada multa diária conforme acordado.
-
-✅ Ao retirar o jogo, o cliente confirma que está em perfeito estado e concorda com os termos da locação.
-
-_Jogoteka — Jogos de Tabuleiro_ 🎲`;
-  return `https://wa.me/${ddi}?text=${encodeURIComponent(msg)}`;
-}
 
 function closeModal(id){ document.getElementById(id).classList.remove('open'); }
 function fecharSeFora(e,id){ if(e.target===document.getElementById(id)) closeModal(id); }
