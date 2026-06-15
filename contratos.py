@@ -338,14 +338,16 @@ def _docx_para_pdf(docx_bytes: bytes, locs) -> bytes:
     """
     1. Abre o DOCX com python-docx
     2. Substitui {{CAMPOS}} (incluindo numerados) em todos os parágrafos e tabelas
-    3. Extrai o conteúdo (parágrafos + tabelas) e renderiza com ReportLab
+    3. Extrai o conteúdo (parágrafos, tabelas e imagens) e renderiza com ReportLab
     """
     import docx as _docx
+    from docx.oxml.ns import qn
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.units import cm
     from reportlab.lib.colors import HexColor
     from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer,
-                                    HRFlowable, Table as RLTable, TableStyle)
+                                    HRFlowable, Table as RLTable, TableStyle,
+                                    Image as RLImage)
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY, TA_RIGHT
 
@@ -386,6 +388,7 @@ def _docx_para_pdf(docx_bytes: bytes, locs) -> bytes:
     dark  = HexColor("#1a1a2e")
     muted = HexColor("#6c757d")
     txt   = HexColor("#212529")
+    max_img_w = A4[0] - 5*cm  # largura máxima de imagem (respeitando margens)
 
     styles = getSampleStyleSheet()
     s_normal = ParagraphStyle("cn", parent=styles["Normal"],
@@ -412,24 +415,65 @@ def _docx_para_pdf(docx_bytes: bytes, locs) -> bytes:
         "Heading 3": s_h3, "Título 3": s_h3,
     }
 
-    def _para_to_rl(para):
-        """Converte um parágrafo do DOCX para um elemento ReportLab."""
+    def _extract_images(para):
+        """Extrai imagens inline do parágrafo como lista de RLImage."""
+        imgs = []
+        for drawing in para._element.findall('.//' + qn('w:drawing')):
+            for blip in drawing.findall('.//' + qn('a:blip')):
+                rId = blip.get(
+                    '{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed'
+                )
+                if not rId:
+                    continue
+                try:
+                    img_bytes = doc.part.related_parts[rId].blob
+                except (KeyError, AttributeError):
+                    continue
+                # Tenta ler dimensões originais do Word (em EMUs: 1 cm = 360000 EMU)
+                w_rl = h_rl = None
+                extent = drawing.find('.//' + qn('wp:extent'))
+                if extent is not None:
+                    cx = int(extent.get('cx', 0))
+                    cy = int(extent.get('cy', 0))
+                    if cx > 0 and cy > 0:
+                        w_rl = cx / 360000 * cm
+                        h_rl = cy / 360000 * cm
+                        if w_rl > max_img_w:
+                            scale = max_img_w / w_rl
+                            w_rl *= scale
+                            h_rl *= scale
+                try:
+                    if w_rl and h_rl:
+                        imgs.append(RLImage(io.BytesIO(img_bytes), width=w_rl, height=h_rl))
+                    else:
+                        imgs.append(RLImage(io.BytesIO(img_bytes), width=min(6*cm, max_img_w), kind="proportional"))
+                except Exception:
+                    pass
+        return imgs
+
+    def _para_to_rl_list(para):
+        """Converte um parágrafo do DOCX para uma lista de elementos ReportLab (texto + imagens)."""
+        elements = []
+
+        # Imagens inline primeiro
+        elements.extend(_extract_images(para))
+
         texto = para.text.strip()
-        if not texto:
-            return Spacer(1, 6)
+        if texto:
+            style_name = para.style.name if para.style else ""
+            if style_name in HEADING_STYLES:
+                elements.append(Paragraph(texto, HEADING_STYLES[style_name]))
+            else:
+                bold_runs = sum(1 for r in para.runs if r.bold and r.text.strip())
+                all_runs  = sum(1 for r in para.runs if r.text.strip())
+                if all_runs and bold_runs / all_runs > 0.5:
+                    elements.append(Paragraph(texto, s_bold))
+                else:
+                    elements.append(Paragraph(texto, s_normal))
+        elif not elements:
+            elements.append(Spacer(1, 6))
 
-        # Detecta estilo de cabeçalho
-        style_name = para.style.name if para.style else ""
-        if style_name in HEADING_STYLES:
-            return Paragraph(texto, HEADING_STYLES[style_name])
-
-        # Detecta negrito dominante (maioria dos runs em bold)
-        bold_runs = sum(1 for r in para.runs if r.bold and r.text.strip())
-        all_runs  = sum(1 for r in para.runs if r.text.strip())
-        if all_runs and bold_runs / all_runs > 0.5:
-            return Paragraph(texto, s_bold)
-
-        return Paragraph(texto, s_normal)
+        return elements
 
     def _table_to_rl(table):
         """Converte uma tabela do DOCX para uma RLTable do ReportLab."""
@@ -474,8 +518,7 @@ def _docx_para_pdf(docx_bytes: bytes, locs) -> bytes:
     for child in body:
         tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
         if tag == "p" and para_idx < len(all_paras):
-            elem = _para_to_rl(all_paras[para_idx])
-            if elem:
+            for elem in _para_to_rl_list(all_paras[para_idx]):
                 story.append(elem)
             para_idx += 1
         elif tag == "tbl" and tbl_idx < len(all_tables):
