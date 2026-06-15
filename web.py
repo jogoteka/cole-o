@@ -3205,7 +3205,7 @@ LOJA_HTML = """<!DOCTYPE html>
         </div>
         <div id="v-cliente-form">
           <div class="cpf-busca-row">
-            <div style="flex:1"><label>CPF</label><input id="v-cpf" placeholder="000.000.000-00" oninput="buscarClienteCPF('v')"></div>
+            <div style="flex:1"><label>CPF</label><input id="v-cpf" placeholder="000.000.000-00" oninput="mascCPF(this);buscarClienteCPF('v')"></div>
             <button type="button" class="btn-buscar-cpf" onclick="buscarClienteCPF('v',true)">🔍 Buscar</button>
           </div>
           <input id="v-nome" placeholder="Nome completo" style="margin-top:.5rem">
@@ -3291,7 +3291,7 @@ LOJA_HTML = """<!DOCTYPE html>
         </div>
         <div id="l-cliente-form">
           <div class="cpf-busca-row">
-            <div style="flex:1"><label>CPF</label><input id="l-cpf" placeholder="000.000.000-00" oninput="buscarClienteCPF('l')"></div>
+            <div style="flex:1"><label>CPF</label><input id="l-cpf" placeholder="000.000.000-00" oninput="mascCPF(this);buscarClienteCPF('l')"></div>
             <button type="button" class="btn-buscar-cpf" onclick="buscarClienteCPF('l',true)">🔍 Buscar</button>
           </div>
           <input id="l-nome" placeholder="Nome completo" style="margin-top:.5rem">
@@ -3904,6 +3904,14 @@ function preencherFormCliente(p, c){
 function mascDDMM(el){
   let v = el.value.replace(/\D/g,'');
   if(v.length > 2) v = v.slice(0,2) + '/' + v.slice(2,4);
+  el.value = v;
+}
+
+function mascCPF(el){
+  let v = el.value.replace(/\D/g,'').slice(0,11);
+  if(v.length > 9) v = v.slice(0,3)+'.'+v.slice(3,6)+'.'+v.slice(6,9)+'-'+v.slice(9);
+  else if(v.length > 6) v = v.slice(0,3)+'.'+v.slice(3,6)+'.'+v.slice(6);
+  else if(v.length > 3) v = v.slice(0,3)+'.'+v.slice(3);
   el.value = v;
 }
 
@@ -4734,16 +4742,12 @@ def api_buscar_cliente():
     cpf = request.args.get("cpf", "").strip()
     if not cpf:
         return jsonify(None)
-    cpf_digits = cpf.replace(".", "").replace("-", "")
-    # CPF é salvo formatado (XXX.XXX.XXX-XX); o LIKE precisa da versão formatada
-    if len(cpf_digits) == 11:
-        cpf_fmt = f"{cpf_digits[:3]}.{cpf_digits[3:6]}.{cpf_digits[6:9]}-{cpf_digits[9:]}"
-    else:
-        cpf_fmt = cpf
-    clientes = lj.listar_clientes(busca=cpf_fmt)
-    for c in clientes:
-        if (c["cpf"] or "").replace(".", "").replace("-", "") == cpf_digits:
-            return jsonify(dict(c))
+    cpf_digits = re.sub(r'\D', '', cpf)
+    if len(cpf_digits) != 11:
+        return jsonify(None)
+    c = lj.buscar_cliente_por_cpf(cpf_digits)
+    if c:
+        return jsonify(dict(c))
     return jsonify(None)
 
 

@@ -52,6 +52,15 @@ def listar_clientes(busca=None):
         return conn.execute("SELECT * FROM clientes ORDER BY nome").fetchall()
 
 
+def buscar_cliente_por_cpf(cpf_digits: str):
+    """Busca cliente pelo CPF normalizado (só dígitos), independente de como está salvo no banco."""
+    with get_connection() as conn:
+        return conn.execute(
+            "SELECT * FROM clientes WHERE REPLACE(REPLACE(cpf, '.', ''), '-', '') = ?",
+            (cpf_digits,)
+        ).fetchone()
+
+
 # ── Vendas ────────────────────────────────────────────────────────────────────
 
 def registrar_venda(dados):
