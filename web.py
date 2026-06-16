@@ -7016,19 +7016,25 @@ ADMIN_HTML = """<!DOCTYPE html>
       <div style="background:rgba(237,148,14,.07);border:1px solid rgba(237,148,14,.2);border-radius:8px;padding:.75rem">
         <div style="font-size:.8rem;font-weight:700;color:var(--orange);margin-bottom:.3rem">📋 Alternativa — PDF</div>
         <div style="font-size:.78rem;color:var(--muted);margin-bottom:.6rem">
-          Sobe seu contrato já pronto em PDF. O sistema adiciona uma ficha de dados na primeira página e envia junto.
-          Os campos <strong>não são substituídos</strong> no PDF (use o Word para isso).
+          Sobe seu contrato em PDF mantendo o layout, logo e assinatura exatamente como você criou.
+          Se o PDF tiver <strong>campos de formulário</strong> nomeados (ex: <code>NOME_CLIENTE</code>, <code>JOGO_1</code>),
+          o sistema preenche automaticamente com os dados da locação.
         </div>
         <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
           <label style="background:var(--orange);color:white;padding:.4rem .9rem;border-radius:8px;font-size:.82rem;font-weight:700;cursor:pointer;display:inline-block">
             📤 Subir PDF
             <input type="file" accept=".pdf,application/pdf" style="display:none" onchange="uploadTemplatePDF(this)">
           </label>
+          <button id="btn-verificar-campos" onclick="verificarCamposPDF()"
+            style="background:rgba(123,32,225,.2);border:1px solid rgba(123,32,225,.4);color:#c9a9ff;padding:.4rem .9rem;border-radius:8px;font-size:.82rem;font-weight:700;cursor:pointer">
+            🔍 Verificar campos
+          </button>
           <button id="btn-remover-pdf" onclick="removerTemplatePDF()"
             style="display:none;background:rgba(241,10,10,.12);border:1px solid rgba(241,10,10,.3);color:#fc8181;padding:.4rem .9rem;border-radius:8px;font-size:.82rem;cursor:pointer">
             🗑 Remover PDF
           </button>
         </div>
+        <div id="campos-pdf-resultado" style="margin-top:.7rem;font-size:.8rem"></div>
       </div>
     </div>
     <div id="secao-editor-texto">
@@ -7344,6 +7350,44 @@ async function removerTemplatePDF(){
   if(!confirm('Remover o PDF de contrato? O sistema voltará a usar o modelo de texto.')) return;
   const r = await api('/contrato-modelo/remover-pdf',{method:'POST',body:'{}'});
   if(r.ok) atualizarStatusTemplate({tipo:'texto'});
+}
+
+async function verificarCamposPDF(){
+  const box = document.getElementById('campos-pdf-resultado');
+  box.innerHTML = '<span style="color:var(--muted)">Verificando…</span>';
+  const r = await api('/contrato-modelo/campos-pdf');
+  if(!r || r.error || r.erro){
+    box.innerHTML = '<span style="color:#fc8181">Erro: '+((r&&(r.error||r.erro))||'tente novamente')+'</span>';
+    return;
+  }
+  if(!r.tem_pdf){
+    box.innerHTML = '<span style="color:#ED940E">'+(r.msg||'Nenhum PDF cadastrado.')+'</span>';
+    return;
+  }
+  if(!r.total_campos){
+    box.innerHTML = '<div style="color:#fc8181;font-weight:700">⚠️ Este PDF não tem campos de formulário.</div>'+
+      '<div style="color:var(--muted);margin-top:.3rem">Os dados não podem ser preenchidos. Você precisa criar campos de formulário no PDF (com um editor como LibreOffice) e nomeá-los igual aos campos do sistema.</div>';
+    return;
+  }
+  let html = '<div style="margin-bottom:.4rem"><strong>'+r.reconhecidos+' de '+r.total_campos+'</strong> campo(s) serão preenchidos automaticamente:</div>';
+  html += '<div style="display:flex;flex-direction:column;gap:.2rem">';
+  for(const c of r.campos){
+    const ok = c.reconhecido;
+    html += '<div style="display:flex;align-items:center;gap:.4rem">'+
+      '<span>'+(ok?'✅':'❌')+'</span>'+
+      '<code style="color:'+(ok?'#17C629':'#fc8181')+'">'+c.nome+'</code>'+
+      (ok?'':' <span style="color:var(--muted);font-size:.74rem">— nome não reconhecido, renomeie</span>')+
+      '</div>';
+  }
+  html += '</div>';
+  const naoOk = r.campos.filter(c=>!c.reconhecido).length;
+  if(naoOk){
+    html += '<details style="margin-top:.6rem"><summary style="cursor:pointer;color:#c9a9ff">Ver nomes de campos aceitos</summary>'+
+      '<div style="margin-top:.4rem;display:flex;flex-wrap:wrap;gap:.3rem">'+
+      r.campos_disponiveis.map(c=>'<code style="background:#16213e;border:1px solid rgba(255,255,255,.12);border-radius:4px;padding:.1rem .4rem">'+c+'</code>').join('')+
+      '</div></details>';
+  }
+  box.innerHTML = html;
 }
 
 function inserirCampo(campo){
