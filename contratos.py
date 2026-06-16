@@ -1474,6 +1474,43 @@ def enviar_lembretes_devolucao() -> dict:
     return {"enviados": enviados, "erros": erros, "total": len(locacoes)}
 
 
+def registrar_disparo_cron(resultado: dict):
+    """Registra a data/hora e o resultado do último disparo externo (cron-job.org)."""
+    agora = datetime.now().isoformat(sep=" ", timespec="seconds")
+    resumo = f"enviados: {resultado.get('enviados', 0)} | já avisados/pulados: "\
+             f"{max(0, resultado.get('total', 0) - resultado.get('enviados', 0) - resultado.get('erros', 0))} | "\
+             f"erros: {resultado.get('erros', 0)} | total: {resultado.get('total', 0)}"
+    try:
+        with get_connection() as conn:
+            existing = conn.execute("SELECT id FROM cron_status LIMIT 1").fetchone()
+            if existing:
+                conn.execute(
+                    "UPDATE cron_status SET ultimo_disparo = ?, ultimo_resultado = ? WHERE id = ?",
+                    (agora, resumo, existing["id"])
+                )
+            else:
+                conn.execute(
+                    "INSERT INTO cron_status (id, ultimo_disparo, ultimo_resultado) VALUES (1, ?, ?)",
+                    (agora, resumo)
+                )
+    except Exception as e:
+        logger.warning("[cron] não foi possível registrar status: %s", e)
+
+
+def carregar_status_cron() -> dict:
+    """Retorna data/hora e resumo do último disparo externo, ou None se nunca houve."""
+    try:
+        with get_connection() as conn:
+            row = conn.execute(
+                "SELECT ultimo_disparo, ultimo_resultado FROM cron_status ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+            if row and row["ultimo_disparo"]:
+                return {"ultimo_disparo": row["ultimo_disparo"], "ultimo_resultado": row["ultimo_resultado"]}
+    except Exception:
+        pass
+    return {"ultimo_disparo": None, "ultimo_resultado": None}
+
+
 def status_contrato(locacao_id: int) -> dict:
     """Consulta o ClicksZap pelo status do contrato da locação."""
     if not _get_token():

@@ -222,6 +222,12 @@ _PG_SCHEMA = """
         enviado_em TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS cron_status (
+        id INTEGER PRIMARY KEY,
+        ultimo_disparo TEXT,
+        ultimo_resultado TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS landing_midia (
         id SERIAL PRIMARY KEY,
         tipo TEXT NOT NULL,

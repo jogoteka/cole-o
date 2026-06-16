@@ -7118,6 +7118,10 @@ ADMIN_HTML = """<!DOCTYPE html>
         ativas com devolução prevista para o dia seguinte e envia automaticamente uma mensagem via
         WhatsApp pelo ClicksZap. Use <code>{nome}</code>, <code>{jogo}</code> e <code>{data}</code> no texto.
       </p>
+      <div id="cron-status-box" style="display:none;background:rgba(123,32,225,.08);border:1px solid rgba(123,32,225,.25);border-radius:8px;padding:.6rem .8rem;margin-bottom:1rem;font-size:.82rem">
+        <strong style="color:#c9a9ff">🔁 Gatilho externo (cron):</strong>
+        <span id="cron-status-texto" style="color:var(--muted)"></span>
+      </div>
       <label style="font-size:.8rem;color:var(--muted);font-weight:700;display:block;margin-bottom:.4rem">MENSAGEM</label>
       <textarea id="lembrete-template" rows="8"
         style="width:100%;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:8px;
@@ -7476,7 +7480,26 @@ async function enviarTeste(){
 async function carregarLembrete(){
   const d = await api('/admin/lembrete');
   if(d && d.template) document.getElementById('lembrete-template').value = d.template;
+  // Status do gatilho externo (cron)
+  const box = document.getElementById('cron-status-box');
+  if(d && d.cron && d.cron.ultimo_disparo){
+    document.getElementById('cron-status-texto').textContent =
+      ' último disparo em ' + fmtDataHora(d.cron.ultimo_disparo) + ' — ' + (d.cron.ultimo_resultado||'');
+    box.style.display = '';
+  } else if(box){
+    document.getElementById('cron-status-texto').textContent =
+      ' ainda não houve nenhum disparo externo registrado.';
+    box.style.display = '';
+  }
   carregarLogLembretes();
+}
+
+function fmtDataHora(s){
+  if(!s) return '—';
+  // s no formato "YYYY-MM-DD HH:MM:SS"
+  const m = String(s).match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+  if(!m) return s;
+  return `${m[3]}/${m[2]}/${m[1]} às ${m[4]}:${m[5]}`;
 }
 
 async function salvarLembrete(){
@@ -7715,7 +7738,8 @@ def api_editar_usuario(uid):
 def api_get_lembrete():
     return jsonify({
         "template": ct.carregar_template_lembrete(),
-        "padrao": ct.TEMPLATE_LEMBRETE_PADRAO
+        "padrao": ct.TEMPLATE_LEMBRETE_PADRAO,
+        "cron": ct.carregar_status_cron(),
     })
 
 @app.route("/api/admin/lembrete", methods=["POST"])
@@ -7747,6 +7771,7 @@ def api_cron_lembretes():
     if not CRON_TOKEN or token != CRON_TOKEN:
         return jsonify({"erro": "não autorizado"}), 403
     resultado = ct.enviar_lembretes_devolucao()
+    ct.registrar_disparo_cron(resultado)
     _log.info("[cron] Lembretes disparados via gatilho externo: %s", resultado)
     return jsonify(resultado)
 
