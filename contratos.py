@@ -223,10 +223,12 @@ def salvar_template_pdf(pdf_bytes: bytes):
     agora = datetime.now().isoformat(sep=" ", timespec="seconds")
     clausulas_atual = carregar_modelo()
     with get_connection() as conn:
+        _garantir_coluna_docx(conn)
         existing = conn.execute("SELECT id FROM contrato_modelo LIMIT 1").fetchone()
         if existing:
+            # Subir um PDF desativa o DOCX (o PDF passa a ser o modelo ativo)
             conn.execute(
-                "UPDATE contrato_modelo SET template_pdf_b64 = ?, atualizado_em = ? WHERE id = ?",
+                "UPDATE contrato_modelo SET template_pdf_b64 = ?, template_docx_b64 = NULL, atualizado_em = ? WHERE id = ?",
                 (b64, agora, existing["id"])
             )
         else:
@@ -876,38 +878,39 @@ def _preencher_pdf_formulario(pdf_bytes: bytes, locs) -> bytes:
         logger.info("[pdf-form] PDF tem campos mas nenhum casou com os do sistema")
         return pdf_bytes
 
-    writer = PdfWriter()
-    writer.append(reader)
+    # A partir daqui, QUALQUER falha no preenchimento devolve o PDF original
+    # — o contrato é enviado mesmo assim, só sem os campos preenchidos.
+    try:
+        writer = PdfWriter()
+        writer.append(reader)
 
-    # Preenche e "achata" os campos: os valores viram conteúdo fixo da página,
-    # aparecendo em qualquer visualizador (inclusive o serviço de assinatura).
-    achatou = True
-    for page in writer.pages:
-        try:
-            writer.update_page_form_field_values(
-                page, preenchimento, auto_regenerate=False, flatten=True
-            )
-        except TypeError:
-            # Versão antiga do pypdf sem flatten/auto_regenerate
-            achatou = False
+        # Preenche e "achata" os campos: os valores viram conteúdo fixo da página,
+        # aparecendo em qualquer visualizador (inclusive o serviço de assinatura).
+        achatou = True
+        for page in writer.pages:
             try:
+                writer.update_page_form_field_values(
+                    page, preenchimento, auto_regenerate=False, flatten=True
+                )
+            except TypeError:
+                # Versão antiga do pypdf sem flatten/auto_regenerate
+                achatou = False
                 writer.update_page_form_field_values(page, preenchimento)
-            except Exception as e:
-                logger.warning("[pdf-form] erro ao preencher página: %s", e)
-        except Exception as e:
-            logger.warning("[pdf-form] erro ao preencher página: %s", e)
 
-    # Fallback p/ versões antigas: força o visualizador a regenerar a aparência
-    if not achatou:
-        try:
-            writer.set_need_appearances_writer(True)
-        except Exception:
-            pass
+        # Fallback p/ versões antigas: força o visualizador a regenerar a aparência
+        if not achatou:
+            try:
+                writer.set_need_appearances_writer(True)
+            except Exception:
+                pass
 
-    out = io.BytesIO()
-    writer.write(out)
-    logger.info("[pdf-form] %d campo(s) preenchido(s) no PDF", len(preenchimento))
-    return out.getvalue()
+        out = io.BytesIO()
+        writer.write(out)
+        logger.info("[pdf-form] %d campo(s) preenchido(s) no PDF", len(preenchimento))
+        return out.getvalue()
+    except Exception as e:
+        logger.error("[pdf-form] Falha ao preencher — enviando PDF original: %s", e)
+        return pdf_bytes
 
 
 def gerar_pdf_contrato(locacao_id: int) -> bytes:
