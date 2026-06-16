@@ -4830,6 +4830,11 @@ def api_tem_template_pdf():
     info = ct.info_template()
     return jsonify(info)
 
+@app.route("/api/contrato-modelo/campos-pdf")
+def api_campos_pdf():
+    """Diagnóstico: lista os campos de formulário do PDF e quais o sistema reconhece."""
+    return jsonify(ct.diagnostico_campos_pdf())
+
 @app.route("/api/contrato-modelo/preview")
 def api_preview_modelo():
     """Gera um PDF de preview do modelo (sem dados reais de locação)."""

@@ -336,6 +336,49 @@ def info_template() -> dict:
     return {"tipo": "texto"}
 
 
+# Nomes de campos que o sistema sabe preencher
+CAMPOS_DISPONIVEIS = [
+    "NOME_LOJA", "CNPJ_LOJA", "ENDERECO_LOJA", "NUM_CONTRATO", "DATA_GERACAO",
+    "NOME_CLIENTE", "CPF_CLIENTE", "TELEFONE_CLIENTE", "ENDERECO_CLIENTE",
+    "JOGO", "DATA_SAIDA", "DATA_PREVISTA", "OPCAO_DIAS", "VALOR_LOCACAO",
+    "FORMA_PAGAMENTO", "MULTA_DIA", "TOTAL_JOGOS", "VALOR_TOTAL",
+] + [f"{base}_{i}" for i in range(1, 6)
+     for base in ("JOGO", "DATA_SAIDA", "DATA_PREVISTA", "OPCAO_DIAS",
+                  "VALOR_LOCACAO", "FORMA_PAGAMENTO", "MULTA_DIA")]
+
+
+def diagnostico_campos_pdf() -> dict:
+    """
+    Lista os campos de formulário do PDF ativo e indica quais o sistema
+    consegue preencher. Útil para o usuário conferir os nomes dos campos.
+    """
+    pdf_bytes = carregar_template_pdf()
+    if not pdf_bytes:
+        return {"tem_pdf": False, "campos": [], "msg": "Nenhum PDF cadastrado como modelo ativo."}
+
+    from pypdf import PdfReader
+    try:
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+        fields = reader.get_fields() or {}
+    except Exception as e:
+        return {"tem_pdf": True, "campos": [], "erro": f"Erro ao ler o PDF: {e}"}
+
+    validos = {c.lower() for c in CAMPOS_DISPONIVEIS}
+    campos = []
+    for nome in fields.keys():
+        chave = (nome or "").strip().lower().replace("{{", "").replace("}}", "")
+        campos.append({"nome": nome, "reconhecido": chave in validos})
+
+    n_ok = sum(1 for c in campos if c["reconhecido"])
+    return {
+        "tem_pdf": True,
+        "total_campos": len(campos),
+        "reconhecidos": n_ok,
+        "campos": campos,
+        "campos_disponiveis": CAMPOS_DISPONIVEIS,
+    }
+
+
 def _docx_para_pdf(docx_bytes: bytes, locs) -> bytes:
     """
     1. Abre o DOCX com python-docx
