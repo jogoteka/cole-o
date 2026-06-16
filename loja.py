@@ -181,17 +181,39 @@ def registrar_devolucao(locacao_id, data_devolucao=None, dados=None):
         multa_dia  = (jogo["multa_dia"] or 0) if jogo else 0
         valor_multa = dias_atraso * multa_dia
 
+        condicao = dados.get("condicao_devolucao")
+        # Com avaria → fica PENDENTE e o jogo NÃO volta ao estoque até ser resolvido.
+        novo_status = "pendente" if condicao == "avaria" else "devolvido"
+
         conn.execute("""UPDATE locacoes
-                        SET status='devolvido', data_devolucao=?, valor_multa=?,
+                        SET status=?, data_devolucao=?, valor_multa=?,
                             condicao_devolucao=?, avaria_descricao=?
                         WHERE id=?""",
-                     (data_dev, valor_multa,
-                      dados.get("condicao_devolucao"),
+                     (novo_status, data_dev, valor_multa,
+                      condicao,
                       dados.get("avaria_descricao"),
                       locacao_id))
 
-    est.movimentar(loc["jogo_id"], "entrada", 1, "devolução", f"Locação #{locacao_id}")
-    return {"dias_atraso": dias_atraso, "valor_multa": valor_multa}
+    # Só devolve ao estoque quando está tudo certo
+    if novo_status == "devolvido":
+        est.movimentar(loc["jogo_id"], "entrada", 1, "devolução", f"Locação #{locacao_id}")
+
+    return {"dias_atraso": dias_atraso, "valor_multa": valor_multa,
+            "status": novo_status, "condicao": condicao or "ok"}
+
+
+def resolver_pendencia(locacao_id):
+    """Encerra uma devolução pendente (avaria resolvida): vira 'devolvido' e o jogo volta ao estoque."""
+    with get_connection() as conn:
+        loc = conn.execute("SELECT * FROM locacoes WHERE id = ?", (locacao_id,)).fetchone()
+        if not loc:
+            raise ValueError("Locação não encontrada")
+        if loc["status"] != "pendente":
+            raise ValueError("Esta locação não está pendente")
+        conn.execute("UPDATE locacoes SET status='devolvido' WHERE id=?", (locacao_id,))
+
+    est.movimentar(loc["jogo_id"], "entrada", 1, "avaria resolvida", f"Locação #{locacao_id}")
+    return {"ok": True, "status": "devolvido"}
 
 
 def excluir_locacao(locacao_id):

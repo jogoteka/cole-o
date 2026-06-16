@@ -4300,19 +4300,36 @@ function calcMultaPreview(){
 
 async function confirmarDevolucao(){
   const condicao = document.querySelector('input[name="condicao"]:checked')?.value || 'ok';
+  const avaria = condicao==='avaria' ? (document.getElementById('dev-avaria').value||'').trim() : null;
+  if(condicao==='avaria' && !avaria){
+    toast('Descreva a avaria antes de confirmar', true); return;
+  }
   const res = await api('/loja/devolucao',{method:'POST',body:JSON.stringify({
     locacao_id: locacaoDevId,
     data_devolucao: document.getElementById('dev-data').value,
     condicao_devolucao: condicao,
-    avaria_descricao: condicao==='avaria' ? document.getElementById('dev-avaria').value||null : null
+    avaria_descricao: avaria
   })});
   if(res.error){ toast(res.error,true); return; }
   closeModal('modal-dev');
-  const msg = res.valor_multa>0
-    ? `✔ Devolução registrada. Multa: ${fmt(res.valor_multa)}`
-    : '✔ Devolução registrada no prazo!';
-  toast(msg);
+  if(res.status === 'pendente'){
+    toast('⚠️ Devolução com avaria registrada — status PENDENTE. Nenhuma mensagem foi enviada ao cliente.');
+  } else {
+    let base = res.valor_multa>0
+      ? `✔ Devolução registrada. Multa: ${fmt(res.valor_multa)}`
+      : '✔ Devolução registrada no prazo!';
+    if(res.mensagem && res.mensagem.ok) base += ' — cliente avisado ✅';
+    else if(res.mensagem && (res.mensagem.error||res.mensagem.erro)) base += ' — ⚠️ aviso não enviado: '+(res.mensagem.error||res.mensagem.erro);
+    toast(base);
+  }
   loadLocacoes(); loadCatalogo();
+}
+
+async function resolverPendencia(id, jogoNome){
+  if(!confirm(`Confirmar que a pendência (avaria) do jogo "${jogoNome}" foi resolvida?\n\nA locação será marcada como devolvida e o jogo voltará ao estoque.`)) return;
+  const res = await api('/loja/devolucao/resolver/'+id,{method:'POST',body:'{}'});
+  if(res && res.ok){ toast('✔ Pendência resolvida — jogo de volta ao estoque'); loadLocacoes(); loadCatalogo(); }
+  else toast((res&&(res.error||res.erro))||'Erro ao resolver pendência', true);
 }
 
 // ── Históricos ────────────────────────────────────────────────────────────────
@@ -4391,6 +4408,8 @@ async function loadLocacoes(){
     const atrasado = r.status==='ativa' && r.data_prevista < hoje;
     const statusHtml = r.status==='devolvido'
       ? `<span class="status-devolvido">✔ Devolvido ${fmtData(r.data_devolucao)}</span>`
+      : r.status==='pendente'
+      ? `<span style="color:var(--orange);font-weight:700" title="${(r.avaria_descricao||'').replace(/"/g,'&quot;')}">⏳ Pendente (avaria)</span>`
       : atrasado
       ? `<span class="status-atrasado">⚠ Atrasado</span>`
       : `<span class="status-ativa">🔑 Ativa</span>`;
@@ -4399,7 +4418,10 @@ async function loadLocacoes(){
       data_prevista:r.data_prevista, multa_dia:r.multa_dia
     });
     const btnDev = r.status==='ativa'
-      ? `<button class="btn-devolver" onclick='abrirDevolucao(${r.id},${dadosDev})'>Devolvido</button>` : '—';
+      ? `<button class="btn-devolver" onclick='abrirDevolucao(${r.id},${dadosDev})'>Devolvido</button>`
+      : r.status==='pendente'
+      ? `<button class="btn-devolver" style="color:var(--orange);border-color:var(--orange)" onclick="resolverPendencia(${r.id},'${(r.jogo_nome||'').replace(/'/g,"\\'")}')">✔ Pendência Resolvida</button>`
+      : '—';
 
     const telLimpo = (r.cliente_tel||'').replace(/\D/g,'');
     const btnAvaliacaoLoc = `<a class="btn-whatsapp" style="background:#4285F4" href="${gerarLinkAvaliacaoCliente(r.cliente_tel,r.cliente_nome,'locacao')}" target="_blank">⭐ Avaliação</a>`;
@@ -4725,7 +4747,19 @@ def api_devolucao():
     try:
         d = request.get_json()
         res = lj.registrar_devolucao(d["locacao_id"], d.get("data_devolucao"), dados=d)
+        # "Tudo certo" → envia mensagem ao cliente. "Com avaria" → não envia.
+        if res.get("condicao") == "ok" and ct._get_token():
+            res["mensagem"] = ct.enviar_mensagem_devolucao(d["locacao_id"])
         return jsonify(res)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/loja/devolucao/resolver/<int:locacao_id>", methods=["POST"])
+@requer_perfil("admin", "gerente", "vendedor")
+def api_resolver_pendencia(locacao_id):
+    try:
+        return jsonify(lj.resolver_pendencia(locacao_id))
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
@@ -7131,6 +7165,30 @@ ADMIN_HTML = """<!DOCTYPE html>
         <span style="font-size:.8rem;color:var(--muted)">Variáveis: <code>{nome}</code> · <code>{jogo}</code> · <code>{data}</code></span>
         <button style="background:none;border:none;color:var(--muted);font-size:.8rem;cursor:pointer;padding:0" onclick="restaurarPadrao()">↩ Restaurar padrão</button>
       </div>
+
+      <!-- ── Mensagem de Devolução Concluída ──────────────────────────────── -->
+      <div style="margin-top:2.2rem;padding-top:1.6rem;border-top:1px solid var(--border)">
+        <div class="toolbar" style="margin-bottom:1rem">
+          <h2 style="margin:0">✅ Mensagem de Devolução Concluída</h2>
+          <button class="btn-add" onclick="salvarMsgDevolucao()">💾 Salvar Mensagem</button>
+        </div>
+        <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem">
+          Enviada automaticamente ao cliente quando você confirma a devolução com
+          <strong>✅ Tudo certo</strong> na tela de Locações. Quando a devolução é
+          <strong>⚠️ Com avaria</strong>, nenhuma mensagem é enviada. Use
+          <code>{nome}</code> e <code>{jogo}</code> no texto.
+        </p>
+        <label style="font-size:.8rem;color:var(--muted);font-weight:700;display:block;margin-bottom:.4rem">MENSAGEM</label>
+        <textarea id="devolucao-template" rows="6"
+          style="width:100%;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:8px;
+                 color:var(--text);font-family:inherit;font-size:.9rem;padding:.8rem;resize:vertical;line-height:1.6"
+          placeholder="Ex: Olá {nome}! Recebemos o jogo {jogo} de volta, está tudo certo. Obrigado!"></textarea>
+        <div style="display:flex;gap:1rem;margin-top:.5rem;flex-wrap:wrap">
+          <span style="font-size:.8rem;color:var(--muted)">Variáveis: <code>{nome}</code> · <code>{jogo}</code></span>
+          <button style="background:none;border:none;color:var(--muted);font-size:.8rem;cursor:pointer;padding:0" onclick="restaurarPadraoDevolucao()">↩ Restaurar padrão</button>
+        </div>
+      </div>
+
       <div style="margin-top:1.8rem">
         <div class="toolbar" style="margin-bottom:.6rem">
           <h3 style="margin:0;font-size:1rem">📋 Histórico de Envios</h3>
@@ -7477,6 +7535,7 @@ async function enviarTeste(){
 }
 
 // ── Lembretes WhatsApp ────────────────────────────────────────────────────────
+let _msgDevolucaoPadrao = '';
 async function carregarLembrete(){
   const d = await api('/admin/lembrete');
   if(d && d.template) document.getElementById('lembrete-template').value = d.template;
@@ -7491,7 +7550,25 @@ async function carregarLembrete(){
       ' ainda não houve nenhum disparo externo registrado.';
     box.style.display = '';
   }
+  // Mensagem de devolução concluída
+  const dv = await api('/admin/mensagem-devolucao');
+  if(dv){
+    if(dv.template) document.getElementById('devolucao-template').value = dv.template;
+    _msgDevolucaoPadrao = dv.padrao || '';
+  }
   carregarLogLembretes();
+}
+
+async function salvarMsgDevolucao(){
+  const template = document.getElementById('devolucao-template').value.trim();
+  if(!template){ toast('A mensagem não pode ser vazia', true); return; }
+  const res = await api('/admin/mensagem-devolucao', {method:'POST', body:JSON.stringify({template})});
+  if(res && res.ok) toast('✅ Mensagem de devolução salva!');
+  else toast((res&&res.erro)||'Erro ao salvar', true);
+}
+
+function restaurarPadraoDevolucao(){
+  if(_msgDevolucaoPadrao) document.getElementById('devolucao-template').value = _msgDevolucaoPadrao;
 }
 
 function fmtDataHora(s){
@@ -7741,6 +7818,24 @@ def api_get_lembrete():
         "padrao": ct.TEMPLATE_LEMBRETE_PADRAO,
         "cron": ct.carregar_status_cron(),
     })
+
+@app.route("/api/admin/mensagem-devolucao", methods=["GET"])
+@requer_admin
+def api_get_msg_devolucao():
+    return jsonify({
+        "template": ct.carregar_template_devolucao(),
+        "padrao": ct.TEMPLATE_DEVOLUCAO_PADRAO
+    })
+
+@app.route("/api/admin/mensagem-devolucao", methods=["POST"])
+@requer_admin
+def api_salvar_msg_devolucao():
+    d = request.get_json()
+    template = (d.get("template") or "").strip()
+    if not template:
+        return jsonify({"erro": "Template não pode ser vazio"}), 400
+    ct.salvar_template_devolucao(template)
+    return jsonify({"ok": True})
 
 @app.route("/api/admin/lembrete", methods=["POST"])
 @requer_admin

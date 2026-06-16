@@ -1372,6 +1372,73 @@ def salvar_template_lembrete(template: str, nome: str = "Lembrete de Devolução
                 (nome, template, agora)
             )
 
+
+# ── Mensagem de devolução concluída ───────────────────────────────────────────
+
+TEMPLATE_DEVOLUCAO_PADRAO = (
+    "Olá *{nome}*! 🎉\n\n"
+    "Recebemos o jogo *{jogo}* de volta e está tudo certinho! ✅\n\n"
+    "Muito obrigado por cuidar tão bem e por alugar com a gente. "
+    "Esperamos te ver de novo em breve! 🎲\n\n"
+    "— Jogoteka"
+)
+
+def carregar_template_devolucao() -> str:
+    try:
+        with get_connection() as conn:
+            row = conn.execute(
+                "SELECT template FROM mensagem_devolucao WHERE ativo = 1 ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+            if row and row["template"]:
+                return row["template"]
+    except Exception:
+        pass
+    return TEMPLATE_DEVOLUCAO_PADRAO
+
+def salvar_template_devolucao(template: str, nome: str = "Devolução Concluída"):
+    agora = datetime.now().isoformat(sep=" ", timespec="seconds")
+    with get_connection() as conn:
+        existing = conn.execute(
+            "SELECT id FROM mensagem_devolucao ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        if existing:
+            conn.execute("UPDATE mensagem_devolucao SET ativo = 0")
+            conn.execute(
+                "UPDATE mensagem_devolucao SET template = ?, nome = ?, ativo = 1, atualizado_em = ? WHERE id = ?",
+                (template, nome, agora, existing["id"])
+            )
+        else:
+            conn.execute(
+                "INSERT INTO mensagem_devolucao (nome, template, ativo, atualizado_em) VALUES (?, ?, 1, ?)",
+                (nome, template, agora)
+            )
+
+def enviar_mensagem_devolucao(locacao_id: int) -> dict:
+    """Envia a mensagem de 'devolução concluída — tudo certo' ao cliente via WhatsApp."""
+    with get_connection() as conn:
+        loc = conn.execute("""
+            SELECT j.nome AS jogo_nome, c.nome AS cliente_nome, c.telefone AS cliente_tel
+            FROM locacoes l
+            JOIN jogos j ON j.id = l.jogo_id
+            LEFT JOIN clientes c ON c.id = l.cliente_id
+            WHERE l.id = ?
+        """, (locacao_id,)).fetchone()
+
+    if not loc:
+        return {"error": "Locação não encontrada"}
+    tel = re.sub(r'\D', '', loc["cliente_tel"] or "")
+    if not tel:
+        return {"error": "Cliente sem telefone cadastrado"}
+    if not tel.startswith("55"):
+        tel = "55" + tel
+
+    mensagem = (carregar_template_devolucao()
+        .replace("{nome}", loc["cliente_nome"] or "Cliente")
+        .replace("{jogo}", loc["jogo_nome"] or "jogo")
+    )
+    return _enviar_mensagem_whatsapp(tel, mensagem)
+
+
 def _enviar_mensagem_whatsapp(telefone: str, mensagem: str) -> dict:
     """Envia mensagem de texto simples via ClicksZap."""
     token_atual = _get_token()

@@ -228,6 +228,14 @@ _PG_SCHEMA = """
         ultimo_resultado TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS mensagem_devolucao (
+        id SERIAL PRIMARY KEY,
+        nome TEXT NOT NULL DEFAULT 'Devolução Concluída',
+        template TEXT NOT NULL,
+        ativo INTEGER NOT NULL DEFAULT 1,
+        atualizado_em TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS landing_midia (
         id SERIAL PRIMARY KEY,
         tipo TEXT NOT NULL,
