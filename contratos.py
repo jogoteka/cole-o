@@ -638,7 +638,7 @@ def _build_campos(locs) -> dict:
 
     endereco_cli = ", ".join(filter(None, [
         pri.get("logradouro"), pri.get("numero"),
-        pri.get("bairro"), pri.get("cidade"), pri.get("estado")
+        pri.get("cidade"), pri.get("estado")
     ])) or "Não informado"
 
     # Campos base (cliente + loja)
