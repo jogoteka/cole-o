@@ -4,3 +4,8 @@ notas/
 __pycache__/
 *.pyc
 .env
+
+# Arquivos locais de desenvolvimento
+serve_preview.py
+preview_comparacao.html
+.claude/
