@@ -3433,6 +3433,28 @@ LOJA_HTML = """<!DOCTYPE html>
   </div>
 </div>
 
+<div class="modal-bg" id="modal-dev-grupo" onclick="fecharSeFora(event,'modal-dev-grupo')">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header" style="border-color:rgba(23,198,41,.3)">
+      <div class="ph" style="background:rgba(23,198,41,.1);font-size:1.5rem">📦</div>
+      <div><h3>Devolução do Conjunto</h3><p id="devg-subtitle">—</p></div>
+    </div>
+    <div class="modal-body">
+      <label>Data de devolução</label>
+      <input id="devg-data" type="date">
+      <p style="font-size:.82rem;color:var(--muted);margin:.8rem 0 .4rem">
+        Marque a condição de cada jogo. Os jogos com <strong>avaria</strong> ficam pendentes
+        (sem mensagem); os demais geram <strong>uma única mensagem</strong> de confirmação ao cliente.
+      </p>
+      <div id="devg-lista" style="display:flex;flex-direction:column;gap:.7rem;margin-top:.6rem"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal('modal-dev-grupo')">Cancelar</button>
+      <button class="btn-vender" onclick="confirmarDevolucaoGrupo()">✓ Confirmar Devolução</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -4332,6 +4354,66 @@ async function resolverPendencia(id, jogoNome){
   else toast((res&&(res.error||res.erro))||'Erro ao resolver pendência', true);
 }
 
+// ── Devolução em conjunto (vários jogos do mesmo aluguel) ───────────────────────
+let _devgGrupo = [];
+function abrirDevolucaoGrupo(clienteId, dataSaida){
+  _devgGrupo = _locRows.filter(x => x.status==='ativa'
+    && x.cliente_id===clienteId
+    && (x.data_saida||'').slice(0,10)===dataSaida);
+  if(!_devgGrupo.length) return;
+  const cliente = _devgGrupo[0].cliente_nome || 'Cliente';
+  document.getElementById('devg-subtitle').textContent =
+    `${cliente} — ${_devgGrupo.length} jogos`;
+  document.getElementById('devg-data').value = hoje();
+  document.getElementById('devg-lista').innerHTML = _devgGrupo.map(g => `
+    <div style="background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px;padding:.7rem .8rem">
+      <div style="font-weight:700;color:white;margin-bottom:.5rem">🎲 ${g.jogo_nome}</div>
+      <div class="condicao-opcoes">
+        <label class="condicao-btn">
+          <input type="radio" name="devg-cond-${g.id}" value="ok" checked onchange="toggleAvariaGrupo(${g.id})"> ✅ Tudo certo
+        </label>
+        <label class="condicao-btn avaria">
+          <input type="radio" name="devg-cond-${g.id}" value="avaria" onchange="toggleAvariaGrupo(${g.id})"> ⚠️ Com avaria
+        </label>
+      </div>
+      <div id="devg-avaria-box-${g.id}" style="display:none;margin-top:.5rem">
+        <textarea id="devg-avaria-${g.id}" placeholder="Descreva a avaria deste jogo…"
+          style="width:100%;background:rgba(255,255,255,.07);border:1px solid rgba(241,10,10,.4);border-radius:8px;color:white;padding:.5rem .75rem;font-family:'Nunito',sans-serif;font-size:.85rem;min-height:56px;resize:vertical;outline:none"></textarea>
+      </div>
+    </div>`).join('');
+  document.getElementById('modal-dev-grupo').classList.add('open');
+}
+
+function toggleAvariaGrupo(id){
+  const avaria = document.querySelector(`input[name="devg-cond-${id}"]:checked`)?.value === 'avaria';
+  document.getElementById('devg-avaria-box-'+id).style.display = avaria ? 'block' : 'none';
+}
+
+async function confirmarDevolucaoGrupo(){
+  const itens = [];
+  for(const g of _devgGrupo){
+    const cond = document.querySelector(`input[name="devg-cond-${g.id}"]:checked`)?.value || 'ok';
+    let avaria = null;
+    if(cond==='avaria'){
+      avaria = (document.getElementById('devg-avaria-'+g.id).value||'').trim();
+      if(!avaria){ toast(`Descreva a avaria do jogo "${g.jogo_nome}"`, true); return; }
+    }
+    itens.push({locacao_id:g.id, condicao_devolucao:cond, avaria_descricao:avaria});
+  }
+  const res = await api('/loja/devolucao/grupo',{method:'POST',body:JSON.stringify({
+    data_devolucao: document.getElementById('devg-data').value,
+    itens
+  })});
+  if(res.error){ toast(res.error,true); return; }
+  closeModal('modal-dev-grupo');
+  let msg = `✔ ${res.devolvidos} jogo(s) devolvido(s)`;
+  if(res.pendentes>0) msg += `, ${res.pendentes} pendente(s) por avaria`;
+  if(res.mensagem && res.mensagem.ok) msg += ' — cliente avisado ✅';
+  else if(res.mensagem && (res.mensagem.error||res.mensagem.erro)) msg += ' — ⚠️ aviso não enviado: '+(res.mensagem.error||res.mensagem.erro);
+  toast(msg);
+  loadLocacoes(); loadCatalogo();
+}
+
 // ── Históricos ────────────────────────────────────────────────────────────────
 async function loadVendas(){
   const rows = await api('/loja/vendas');
@@ -4396,8 +4478,10 @@ async function _checarPendentes(rows){
   }
 }
 
+let _locRows = [];
 async function loadLocacoes(){
   const rows = await api('/loja/locacoes');
+  _locRows = rows;
   const tbody = document.getElementById('body-locacoes');
   if(!rows.length){
     tbody.innerHTML='<tr><td colspan="10" class="empty">Nenhuma locação registrada</td></tr>';
@@ -4405,6 +4489,10 @@ async function loadLocacoes(){
   }
   const hoje = new Date().toISOString().slice(0,10);
   tbody.innerHTML = rows.map(r=>{
+    // Jogos ativos do mesmo aluguel (mesmo cliente + mesma data de saída)
+    const grupoAtivos = rows.filter(x => x.status==='ativa'
+      && x.cliente_id===r.cliente_id
+      && (x.data_saida||'').slice(0,10)===(r.data_saida||'').slice(0,10));
     const atrasado = r.status==='ativa' && r.data_prevista < hoje;
     const statusHtml = r.status==='devolvido'
       ? `<span class="status-devolvido">✔ Devolvido ${fmtData(r.data_devolucao)}</span>`
@@ -4417,8 +4505,11 @@ async function loadLocacoes(){
       jogo_nome:r.jogo_nome, cliente_nome:r.cliente_nome,
       data_prevista:r.data_prevista, multa_dia:r.multa_dia
     });
+    const emGrupo = grupoAtivos.length > 1;
     const btnDev = r.status==='ativa'
-      ? `<button class="btn-devolver" onclick='abrirDevolucao(${r.id},${dadosDev})'>Devolvido</button>`
+      ? (emGrupo
+          ? `<button class="btn-devolver" onclick='abrirDevolucaoGrupo(${r.cliente_id},"${(r.data_saida||'').slice(0,10)}")' title="${grupoAtivos.length} jogos neste aluguel">Devolvido (${grupoAtivos.length})</button>`
+          : `<button class="btn-devolver" onclick='abrirDevolucao(${r.id},${dadosDev})'>Devolvido</button>`)
       : r.status==='pendente'
       ? `<button class="btn-devolver" style="color:var(--orange);border-color:var(--orange)" onclick="resolverPendencia(${r.id},'${(r.jogo_nome||'').replace(/'/g,"\\'")}')">✔ Pendência Resolvida</button>`
       : '—';
@@ -4760,6 +4851,34 @@ def api_devolucao():
 def api_resolver_pendencia(locacao_id):
     try:
         return jsonify(lj.resolver_pendencia(locacao_id))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/loja/devolucao/grupo", methods=["POST"])
+@requer_perfil("admin", "gerente", "vendedor")
+def api_devolucao_grupo():
+    """Devolve vários jogos do mesmo aluguel de uma vez e envia UMA mensagem só."""
+    try:
+        d = request.get_json()
+        data_dev = d.get("data_devolucao")
+        itens = d.get("itens", [])
+        if not itens:
+            return jsonify({"error": "Nenhum jogo informado"}), 400
+
+        ok_ids, pendentes = [], 0
+        for it in itens:
+            res = lj.registrar_devolucao(it["locacao_id"], data_dev, dados=it)
+            if res.get("condicao") == "ok":
+                ok_ids.append(it["locacao_id"])
+            else:
+                pendentes += 1
+
+        resultado = {"ok": True, "devolvidos": len(ok_ids), "pendentes": pendentes}
+        # Uma única mensagem para todos os jogos devolvidos "tudo certo"
+        if ok_ids and ct._get_token():
+            resultado["mensagem"] = ct.enviar_mensagem_devolucao_grupo(ok_ids)
+        return jsonify(resultado)
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
@@ -7175,8 +7294,9 @@ ADMIN_HTML = """<!DOCTYPE html>
         <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem">
           Enviada automaticamente ao cliente quando você confirma a devolução com
           <strong>✅ Tudo certo</strong> na tela de Locações. Quando a devolução é
-          <strong>⚠️ Com avaria</strong>, nenhuma mensagem é enviada. Use
-          <code>{nome}</code> e <code>{jogo}</code> no texto.
+          <strong>⚠️ Com avaria</strong>, nenhuma mensagem é enviada. Se o cliente
+          devolveu vários jogos juntos, recebe <strong>uma única mensagem</strong>.
+          Use <code>{nome}</code> e <code>{jogos}</code> (lista os jogos devolvidos) no texto.
         </p>
         <label style="font-size:.8rem;color:var(--muted);font-weight:700;display:block;margin-bottom:.4rem">MENSAGEM</label>
         <textarea id="devolucao-template" rows="6"
@@ -7184,7 +7304,7 @@ ADMIN_HTML = """<!DOCTYPE html>
                  color:var(--text);font-family:inherit;font-size:.9rem;padding:.8rem;resize:vertical;line-height:1.6"
           placeholder="Ex: Olá {nome}! Recebemos o jogo {jogo} de volta, está tudo certo. Obrigado!"></textarea>
         <div style="display:flex;gap:1rem;margin-top:.5rem;flex-wrap:wrap">
-          <span style="font-size:.8rem;color:var(--muted)">Variáveis: <code>{nome}</code> · <code>{jogo}</code></span>
+          <span style="font-size:.8rem;color:var(--muted)">Variáveis: <code>{nome}</code> · <code>{jogos}</code></span>
           <button style="background:none;border:none;color:var(--muted);font-size:.8rem;cursor:pointer;padding:0" onclick="restaurarPadraoDevolucao()">↩ Restaurar padrão</button>
         </div>
       </div>

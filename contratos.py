@@ -1377,7 +1377,7 @@ def salvar_template_lembrete(template: str, nome: str = "Lembrete de Devolução
 
 TEMPLATE_DEVOLUCAO_PADRAO = (
     "Olá *{nome}*! 🎉\n\n"
-    "Recebemos o jogo *{jogo}* de volta e está tudo certinho! ✅\n\n"
+    "Recebemos *{jogos}* de volta e está tudo certinho! ✅\n\n"
     "Muito obrigado por cuidar tão bem e por alugar com a gente. "
     "Esperamos te ver de novo em breve! 🎲\n\n"
     "— Jogoteka"
@@ -1434,7 +1434,52 @@ def enviar_mensagem_devolucao(locacao_id: int) -> dict:
 
     mensagem = (carregar_template_devolucao()
         .replace("{nome}", loc["cliente_nome"] or "Cliente")
+        .replace("{jogos}", loc["jogo_nome"] or "jogo")
         .replace("{jogo}", loc["jogo_nome"] or "jogo")
+    )
+    return _enviar_mensagem_whatsapp(tel, mensagem)
+
+
+def _juntar_nomes(nomes: list) -> str:
+    """['A','B','C'] -> 'A, B e C'."""
+    nomes = [n for n in nomes if n]
+    if not nomes:
+        return "os jogos"
+    if len(nomes) == 1:
+        return nomes[0]
+    return ", ".join(nomes[:-1]) + " e " + nomes[-1]
+
+
+def enviar_mensagem_devolucao_grupo(locacao_ids: list) -> dict:
+    """Envia UMA mensagem confirmando a devolução de vários jogos do mesmo cliente."""
+    if not locacao_ids:
+        return {"ok": True, "skipped": "nenhum jogo OK para avisar"}
+    placeholders = ",".join("?" for _ in locacao_ids)
+    with get_connection() as conn:
+        rows = conn.execute(f"""
+            SELECT j.nome AS jogo_nome, c.nome AS cliente_nome, c.telefone AS cliente_tel
+            FROM locacoes l
+            JOIN jogos j ON j.id = l.jogo_id
+            LEFT JOIN clientes c ON c.id = l.cliente_id
+            WHERE l.id IN ({placeholders})
+            ORDER BY l.id
+        """, tuple(locacao_ids)).fetchall()
+
+    if not rows:
+        return {"error": "Locações não encontradas"}
+
+    cliente_nome = rows[0]["cliente_nome"] or "Cliente"
+    tel = re.sub(r'\D', '', rows[0]["cliente_tel"] or "")
+    if not tel:
+        return {"error": "Cliente sem telefone cadastrado"}
+    if not tel.startswith("55"):
+        tel = "55" + tel
+
+    lista_jogos = _juntar_nomes([r["jogo_nome"] for r in rows])
+    mensagem = (carregar_template_devolucao()
+        .replace("{nome}", cliente_nome)
+        .replace("{jogos}", lista_jogos)
+        .replace("{jogo}", lista_jogos)
     )
     return _enviar_mensagem_whatsapp(tel, mensagem)
 
