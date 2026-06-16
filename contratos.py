@@ -475,15 +475,27 @@ def _docx_para_pdf(docx_bytes: bytes, locs) -> bytes:
 
         return elements
 
+    def _cell_content(cell):
+        """Retorna conteúdo de uma célula de tabela: texto e/ou imagens."""
+        from reportlab.platypus import KeepTogether
+        s_cell = ParagraphStyle("ct", parent=s_normal, fontSize=9, leading=12)
+        elementos = []
+        for para in cell.paragraphs:
+            elementos.extend(_extract_images(para))
+            txt = para.text.strip()
+            if txt:
+                elementos.append(Paragraph(txt, s_cell))
+        if not elementos:
+            return Paragraph("", s_cell)
+        if len(elementos) == 1:
+            return elementos[0]
+        return KeepTogether(elementos)
+
     def _table_to_rl(table):
-        """Converte uma tabela do DOCX para uma RLTable do ReportLab."""
+        """Converte uma tabela do DOCX para uma RLTable do ReportLab (com imagens em células)."""
         data = []
         for row in table.rows:
-            linha = []
-            for cell in row.cells:
-                cell_text = "\n".join(p.text for p in cell.paragraphs if p.text.strip())
-                linha.append(Paragraph(cell_text, ParagraphStyle("ct", parent=s_normal,
-                    fontSize=9, leading=12)))
+            linha = [_cell_content(cell) for cell in row.cells]
             data.append(linha)
         if not data:
             return None
@@ -507,6 +519,15 @@ def _docx_para_pdf(docx_bytes: bytes, locs) -> bytes:
         topMargin=2.5*cm, bottomMargin=2.5*cm)
 
     story = []
+
+    # Imagens do cabeçalho do Word (logo, etc.) aparecem no topo do PDF
+    for section in doc.sections:
+        for para in section.header.paragraphs:
+            imgs = _extract_images(para)
+            story.extend(imgs)
+        if story:
+            story.append(Spacer(1, 8))
+            break  # usa só o primeiro cabeçalho
 
     # Itera pelo corpo do documento na ordem (parágrafos e tabelas intercalados)
     body = doc.element.body
