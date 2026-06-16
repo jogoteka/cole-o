@@ -203,7 +203,7 @@ _PG_SCHEMA = """
     );
 
     CREATE TABLE IF NOT EXISTS mensagem_lembrete (
-        id INTEGER PRIMARY KEY,
+        id SERIAL PRIMARY KEY,
         nome TEXT NOT NULL DEFAULT 'Lembrete de Devolução',
         template TEXT NOT NULL,
         ativo INTEGER NOT NULL DEFAULT 1,
@@ -211,7 +211,7 @@ _PG_SCHEMA = """
     );
 
     CREATE TABLE IF NOT EXISTS lembretes_log (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         locacao_id INTEGER,
         cliente_nome TEXT,
         cliente_tel TEXT,

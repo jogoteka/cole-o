@@ -1355,10 +1355,15 @@ def carregar_template_lembrete() -> str:
 def salvar_template_lembrete(template: str, nome: str = "Lembrete de Devolução"):
     agora = datetime.now().isoformat(sep=" ", timespec="seconds")
     with get_connection() as conn:
-        existing = conn.execute("SELECT id FROM mensagem_lembrete LIMIT 1").fetchone()
+        existing = conn.execute(
+            "SELECT id FROM mensagem_lembrete ORDER BY id DESC LIMIT 1"
+        ).fetchone()
         if existing:
+            # Desativa todas e reativa apenas a linha atualizada, garantindo que
+            # carregar_template_lembrete (WHERE ativo=1 ORDER BY id DESC) leia esta.
+            conn.execute("UPDATE mensagem_lembrete SET ativo = 0")
             conn.execute(
-                "UPDATE mensagem_lembrete SET template = ?, nome = ?, atualizado_em = ? WHERE id = ?",
+                "UPDATE mensagem_lembrete SET template = ?, nome = ?, ativo = 1, atualizado_em = ? WHERE id = ?",
                 (template, nome, agora, existing["id"])
             )
         else:
