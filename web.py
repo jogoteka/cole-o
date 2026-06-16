@@ -4222,7 +4222,7 @@ async function confirmarLocacao(){
     closeModal('modal-op'); _locGrupo=[];
     toast(`✔ Locação registrada! Devolução em ${fmtData(res.data_prevista)}`);
     loadCatalogo();
-    setTimeout(loadLocacoes, 2500); // aguarda o envio automático do contrato
+    dispararContratoAuto(res.locacao_id);
   } else {
     // ── Fluxo batch (múltiplos jogos — um único contrato) ───────────────
     const body = {
@@ -4240,8 +4240,21 @@ async function confirmarLocacao(){
     closeModal('modal-op'); _locGrupo=[];
     toast(`✔ ${todos.length} locações registradas! Devolução em ${fmtData(res.data_prevista)}`);
     loadCatalogo();
-    setTimeout(loadLocacoes, 2500); // aguarda o envio automático do contrato
+    dispararContratoAuto((res.locacao_ids||[])[0]);
   }
+}
+
+// Dispara o envio do contrato logo após a locação e mostra o resultado na tela
+async function dispararContratoAuto(locacaoId){
+  if(!locacaoId){ setTimeout(loadLocacoes, 1500); return; }
+  toast('📤 Enviando contrato pelo WhatsApp...');
+  const res = await api('/loja/locacoes/'+locacaoId+'/enviar-contrato',{method:'POST',body:'{}'});
+  if(res && res.ok){
+    toast('✅ Contrato enviado pelo WhatsApp!');
+  } else {
+    toast('⚠️ Locação OK, mas o contrato não foi enviado: '+((res&&(res.error||res.erro))||'erro desconhecido'), true);
+  }
+  loadLocacoes();
 }
 
 // ── Devoluções ─────────────────────────────────────────────────────────────────
@@ -4655,19 +4668,8 @@ def api_venda():
 def api_locacao():
     try:
         res = lj.registrar_locacao(request.get_json())
-        # Disparar envio de contrato automaticamente em background
-        if ct._get_token():
-            locacao_id = res["locacao_id"]
-            def _enviar_contrato_bg():
-                try:
-                    result = ct.enviar_contrato(locacao_id)
-                    if "error" in result:
-                        _log.warning("[contrato-auto] Locação #%d: %s", locacao_id, result["error"])
-                    else:
-                        _log.info("[contrato-auto] Locação #%d: contrato enviado OK", locacao_id)
-                except Exception as e:
-                    _log.error("[contrato-auto] Locação #%d erro inesperado: %s", locacao_id, e)
-            threading.Thread(target=_enviar_contrato_bg, daemon=True).start()
+        # O envio do contrato é disparado pelo frontend (dispararContratoAuto),
+        # que mostra o resultado na tela. Ver confirmarLocacao().
         return jsonify(res)
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
@@ -4703,20 +4705,8 @@ def api_locacao_grupo():
             locacao_ids.append(res["locacao_id"])
             ultima_res = res
 
-        # Um único contrato cobrindo todos os jogos do grupo
-        if ct._get_token() and locacao_ids:
-            first_id = locacao_ids[0]
-            def _bg():
-                try:
-                    r = ct.enviar_contrato(first_id)
-                    if "error" in r:
-                        _log.warning("[contrato-grupo] %s", r["error"])
-                    else:
-                        _log.info("[contrato-grupo] contrato enviado — grupo %s", locacao_ids)
-                except Exception as exc:
-                    _log.error("[contrato-grupo] erro: %s", exc)
-            threading.Thread(target=_bg, daemon=True).start()
-
+        # O contrato (único, cobrindo todo o grupo) é enviado pelo frontend,
+        # que mostra o resultado na tela. Ver dispararContratoAuto().
         return jsonify({
             "ok": True,
             "locacao_ids": locacao_ids,
