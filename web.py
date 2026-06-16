@@ -27,6 +27,9 @@ os.makedirs(IMAGENS_DIR, exist_ok=True)
 app = Flask(__name__, instance_path=DATA_DIR)
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
 
+# Token para disparo externo de lembretes (cron-job.org, etc.)
+CRON_TOKEN = os.environ.get("CRON_TOKEN", "")
+
 import logging as _logging
 _logging.basicConfig(level=_logging.INFO)
 _log = _logging.getLogger(__name__)
@@ -2448,7 +2451,7 @@ fetch('/api/landing/publico/midia')
 _ROTAS_PUBLICAS = {"/", "/login", "/setup", "/loja", "/health", "/api/jogos"}
 _PREFIXOS_PUBLICOS = ("/catalogo", "/api/catalogo", "/api/imagens/", "/api/logo",
                       "/api/loja/", "/api/contrato-modelo", "/static/landing/",
-                      "/api/landing/publico", "/api/recebimento/")
+                      "/api/landing/publico", "/api/recebimento/", "/api/cron/")
 
 @app.before_request
 def verificar_auth():
@@ -7730,6 +7733,21 @@ def api_salvar_lembrete():
 def api_disparar_lembretes():
     """Disparo manual para testes — ignora horário."""
     resultado = ct.enviar_lembretes_devolucao()
+    return jsonify(resultado)
+
+@app.route("/api/cron/lembretes", methods=["GET", "POST"])
+def api_cron_lembretes():
+    """
+    Disparo externo dos lembretes (ex: cron-job.org chamando 1x/dia às 14h).
+    Protegido por token secreto — funciona como rede de segurança caso o
+    agendador interno falhe. O envio é idempotente (lembretes_log evita
+    duplicidade), então não há risco de mandar a mensagem em dobro.
+    """
+    token = request.args.get("token") or request.headers.get("X-Cron-Token", "")
+    if not CRON_TOKEN or token != CRON_TOKEN:
+        return jsonify({"erro": "não autorizado"}), 403
+    resultado = ct.enviar_lembretes_devolucao()
+    _log.info("[cron] Lembretes disparados via gatilho externo: %s", resultado)
     return jsonify(resultado)
 
 @app.route("/api/admin/lembrete/log", methods=["GET"])
