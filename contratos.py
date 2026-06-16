@@ -860,18 +860,8 @@ def gerar_pdf_contrato(locacao_id: int) -> bytes:
         return _docx_para_pdf(docx_bytes, locs)
 
     if template_bytes:
-        # ── Modo B: Folha de dados + PDF do usuário ───────────────────────────
-        folha_bytes = _gerar_folha_dados(locs)
-
-        writer = PdfWriter()
-        for page in PdfReader(io.BytesIO(folha_bytes)).pages:
-            writer.add_page(page)
-        for page in PdfReader(io.BytesIO(template_bytes)).pages:
-            writer.add_page(page)
-
-        out = io.BytesIO()
-        writer.write(out)
-        return out.getvalue()
+        # ── Modo B: PDF do usuário direto (sem página gerada pelo sistema) ────
+        return template_bytes
 
     else:
         # ── Modo C: PDF gerado 100% do modelo de texto ────────────────────────
