@@ -146,7 +146,7 @@ def _buscar_grupo_locacoes(locacao_id: int) -> list:
 
         # Busca todas do mesmo cliente no mesmo dia
         rows = conn.execute("""
-            SELECT l.*, j.nome AS jogo_nome, j.multa_dia,
+            SELECT l.*, j.nome AS jogo_nome, j.multa_dia, j.preco_venda,
                    c.nome AS cliente_nome, c.cpf AS cliente_cpf,
                    c.telefone AS cliente_tel, c.logradouro, c.numero,
                    c.bairro, c.cidade, c.estado
@@ -341,7 +341,7 @@ CAMPOS_DISPONIVEIS = [
     "NOME_LOJA", "CNPJ_LOJA", "ENDERECO_LOJA", "NUM_CONTRATO", "DATA_GERACAO",
     "NOME_CLIENTE", "CPF_CLIENTE", "TELEFONE_CLIENTE", "ENDERECO_CLIENTE",
     "JOGO", "DATA_SAIDA", "DATA_PREVISTA", "OPCAO_DIAS", "VALOR_LOCACAO",
-    "FORMA_PAGAMENTO", "MULTA_DIA", "TOTAL_JOGOS", "VALOR_TOTAL",
+    "FORMA_PAGAMENTO", "MULTA_DIA", "TOTAL_JOGOS", "VALOR_TOTAL", "VALOR_VENDA",
 ] + [f"{base}_{i}" for i in range(1, 6)
      for base in ("JOGO", "DATA_SAIDA", "DATA_PREVISTA", "OPCAO_DIAS",
                   "VALOR_LOCACAO", "FORMA_PAGAMENTO", "MULTA_DIA")]
@@ -665,12 +665,14 @@ def _build_campos(locs) -> dict:
 
     # Campos numerados: JOGO_1 a JOGO_5
     valor_total = 0.0
+    valor_venda_total = 0.0
     for i in range(1, 6):
         if i <= len(locs):
             l = locs[i - 1]
             multa = l.get("multa_dia") or 0
             val = float(l.get("valor_locacao") or 0)
             valor_total += val
+            valor_venda_total += float(l.get("preco_venda") or 0)
             campos[f"JOGO_{i}"]             = l.get("jogo_nome") or "—"
             campos[f"DATA_SAIDA_{i}"]       = fmt_data(l.get("data_saida"))
             campos[f"DATA_PREVISTA_{i}"]    = fmt_data(l.get("data_prevista"))
@@ -689,6 +691,7 @@ def _build_campos(locs) -> dict:
             campos[f"MULTA_DIA_{i}"]        = ""
 
     campos["VALOR_TOTAL"] = fmt_moeda(valor_total)
+    campos["VALOR_VENDA"] = fmt_moeda(valor_venda_total) if valor_venda_total else "Não informado"
     return campos
 
 
@@ -876,6 +879,85 @@ def _gerar_folha_dados(locs) -> bytes:
     return buf.getvalue()
 
 
+def _preencher_pdf_texto(pdf_bytes: bytes, locs):
+    """
+    Substitui marcadores {{CAMPO}} que estão como TEXTO dentro do PDF pelos
+    dados reais da locação, mantendo o layout original exatamente como está
+    (logo, assinatura, tabelas, fontes — tudo no lugar).
+
+    Usa PyMuPDF: localiza cada {{CAMPO}} na camada de texto, apaga o marcador
+    e escreve o valor no mesmo lugar. Slots não usados ({{JOGO_2}} etc.) ficam
+    em branco.
+
+    Retorna os bytes do PDF preenchido, ou None se não for aplicável
+    (sem PyMuPDF, PDF inválido, ou nenhum marcador {{...}} de texto).
+    """
+    try:
+        import fitz  # PyMuPDF
+    except ImportError:
+        logger.warning("[pdf-texto] PyMuPDF não instalado — pulando substituição de texto")
+        return None
+
+    import re
+    campos = _build_campos(locs)
+    # Dicionário {{CAMPO}} -> valor
+    substituicoes = {"{{" + nome + "}}": (valor or "") for nome, valor in campos.items()}
+
+    try:
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    except Exception as e:
+        logger.warning("[pdf-texto] PDF inválido: %s", e)
+        return None
+
+    try:
+        texto_total = "".join(p.get_text() for p in doc)
+        if "{{" not in texto_total:
+            doc.close()
+            return None  # não tem marcadores de texto — deixa outro método tentar
+
+        def _fontsize_do_rect(page, rect):
+            try:
+                d = page.get_text("dict", clip=rect)
+                for b in d.get("blocks", []):
+                    for l in b.get("lines", []):
+                        for s in l.get("spans", []):
+                            return s["size"]
+            except Exception:
+                pass
+            return 9.0
+
+        # 1. Substitui os campos conhecidos pelos valores
+        for page in doc:
+            for token, valor in substituicoes.items():
+                for rect in page.search_for(token):
+                    fs = _fontsize_do_rect(page, rect)
+                    page.add_redact_annot(rect, text=valor, fontsize=fs * 0.9,
+                                          fontname="helv", align=0)
+            page.apply_redactions()
+
+        # 2. Limpa marcadores restantes não preenchidos ({{JOGO_2}} etc.)
+        for page in doc:
+            restantes = set(re.findall(r'\{\{[^}]+\}\}', page.get_text()))
+            for token in restantes:
+                for rect in page.search_for(token):
+                    page.add_redact_annot(rect, text="", fontname="helv")
+            if restantes:
+                page.apply_redactions()
+
+        out = io.BytesIO()
+        doc.save(out, garbage=4, deflate=True)
+        doc.close()
+        logger.info("[pdf-texto] %d tipo(s) de campo substituído(s) no PDF", len(substituicoes))
+        return out.getvalue()
+    except Exception as e:
+        logger.error("[pdf-texto] Falha na substituição: %s", e)
+        try:
+            doc.close()
+        except Exception:
+            pass
+        return None
+
+
 def _preencher_pdf_formulario(pdf_bytes: bytes, locs) -> bytes:
     """
     Preenche os campos de formulário (AcroForm) de um PDF com os dados da locação.
@@ -985,7 +1067,12 @@ def gerar_pdf_contrato(locacao_id: int) -> bytes:
         return _docx_para_pdf(docx_bytes, locs)
 
     if template_bytes:
-        # ── Modo B: PDF do usuário — preenche campos de formulário se houver ──
+        # ── Modo B: PDF do usuário — mantém o layout exato e preenche os dados ──
+        # B1: substitui marcadores {{CAMPO}} que estão como texto (mantém layout)
+        resultado = _preencher_pdf_texto(template_bytes, locs)
+        if resultado is not None:
+            return resultado
+        # B2: senão, preenche campos de formulário (AcroForm) se houver
         return _preencher_pdf_formulario(template_bytes, locs)
 
     else:
