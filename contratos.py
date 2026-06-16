@@ -831,6 +831,85 @@ def _gerar_folha_dados(locs) -> bytes:
     return buf.getvalue()
 
 
+def _preencher_pdf_formulario(pdf_bytes: bytes, locs) -> bytes:
+    """
+    Preenche os campos de formulário (AcroForm) de um PDF com os dados da locação.
+
+    Os campos do PDF devem ter nome igual aos campos do sistema, com ou sem chaves:
+    JOGO_1, NOME_CLIENTE, VALOR_LOCACAO, etc. (também aceita {{JOGO_1}}).
+    A comparação é case-insensitive.
+
+    Se o PDF não tiver campos de formulário, retorna o PDF original sem alteração.
+    """
+    from pypdf import PdfReader, PdfWriter
+
+    try:
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+    except Exception as e:
+        logger.warning("[pdf-form] PDF inválido: %s", e)
+        return pdf_bytes
+
+    # PDF tem campos de formulário?
+    try:
+        fields = reader.get_fields()
+    except Exception:
+        fields = None
+    if not fields:
+        # Sem campos — devolve o PDF como está
+        return pdf_bytes
+
+    campos = _build_campos(locs)
+    # Mapa case-insensitive, com e sem chaves: {"jogo_1": valor, "{{jogo_1}}": valor}
+    valores = {}
+    for nome, valor in campos.items():
+        valores[nome.lower()] = valor
+        valores["{{" + nome.lower() + "}}"] = valor
+
+    # Monta dicionário {nome_real_do_campo: valor} para os campos que casarem
+    preenchimento = {}
+    for nome_campo in fields.keys():
+        chave = (nome_campo or "").strip().lower()
+        if chave in valores:
+            preenchimento[nome_campo] = valores[chave]
+
+    if not preenchimento:
+        logger.info("[pdf-form] PDF tem campos mas nenhum casou com os do sistema")
+        return pdf_bytes
+
+    writer = PdfWriter()
+    writer.append(reader)
+
+    # Preenche e "achata" os campos: os valores viram conteúdo fixo da página,
+    # aparecendo em qualquer visualizador (inclusive o serviço de assinatura).
+    achatou = True
+    for page in writer.pages:
+        try:
+            writer.update_page_form_field_values(
+                page, preenchimento, auto_regenerate=False, flatten=True
+            )
+        except TypeError:
+            # Versão antiga do pypdf sem flatten/auto_regenerate
+            achatou = False
+            try:
+                writer.update_page_form_field_values(page, preenchimento)
+            except Exception as e:
+                logger.warning("[pdf-form] erro ao preencher página: %s", e)
+        except Exception as e:
+            logger.warning("[pdf-form] erro ao preencher página: %s", e)
+
+    # Fallback p/ versões antigas: força o visualizador a regenerar a aparência
+    if not achatou:
+        try:
+            writer.set_need_appearances_writer(True)
+        except Exception:
+            pass
+
+    out = io.BytesIO()
+    writer.write(out)
+    logger.info("[pdf-form] %d campo(s) preenchido(s) no PDF", len(preenchimento))
+    return out.getvalue()
+
+
 def gerar_pdf_contrato(locacao_id: int) -> bytes:
     """
     Gera o PDF final do contrato, cobrindo todos os jogos alugados pelo
@@ -860,8 +939,8 @@ def gerar_pdf_contrato(locacao_id: int) -> bytes:
         return _docx_para_pdf(docx_bytes, locs)
 
     if template_bytes:
-        # ── Modo B: PDF do usuário direto (sem página gerada pelo sistema) ────
-        return template_bytes
+        # ── Modo B: PDF do usuário — preenche campos de formulário se houver ──
+        return _preencher_pdf_formulario(template_bytes, locs)
 
     else:
         # ── Modo C: PDF gerado 100% do modelo de texto ────────────────────────
