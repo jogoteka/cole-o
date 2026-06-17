@@ -236,6 +236,14 @@ _PG_SCHEMA = """
         atualizado_em TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS mensagem_avaliacao (
+        id SERIAL PRIMARY KEY,
+        nome TEXT NOT NULL DEFAULT 'Avaliação Google',
+        template TEXT NOT NULL,
+        ativo INTEGER NOT NULL DEFAULT 1,
+        atualizado_em TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS landing_midia (
         id SERIAL PRIMARY KEY,
         tipo TEXT NOT NULL,

@@ -4515,7 +4515,7 @@ async function loadLocacoes(){
       : '—';
 
     const telLimpo = (r.cliente_tel||'').replace(/\D/g,'');
-    const btnAvaliacaoLoc = `<a class="btn-whatsapp" style="background:#4285F4" href="${gerarLinkAvaliacaoCliente(r.cliente_tel,r.cliente_nome,'locacao')}" target="_blank">⭐ Avaliação</a>`;
+    const btnAvaliacaoLoc = `<button class="btn-whatsapp" style="background:#4285F4;font-size:.75rem;border:none;cursor:pointer" onclick="enviarAvaliacao(${r.id},'${(r.cliente_nome||'').replace(/'/g,"\\'")}')">⭐ Avaliação</button>`;
     const btnEditLoc = `<button class="btn-devolver" style="font-size:.75rem" onclick="abrirEdicao('locacao',${r.id},'${r.forma_pagamento||''}','${(r.atendente||'').replace(/'/g,"\\'")}','${(r.observacao||'').replace(/'/g,"\\'")}',${r.opcao_dias||0},'${r.data_saida||''}')">✏️</button>`;
     const btnExcluirLoc = `<button class="btn-devolver" style="font-size:.75rem;color:var(--red);border-color:var(--red)" onclick="excluirLocacao(${r.id},'${(r.jogo_nome||'').replace(/'/g,"\\'")}','${(r.cliente_nome||'').replace(/'/g,"\\'")}')">🗑️</button>`;
 
@@ -4623,6 +4623,14 @@ ${GOOGLE_REVIEW_URL}`;
 
 function gerarLinkAvaliacao(nomeCliente){
   return `https://wa.me/?text=${encodeURIComponent(msgAvaliacao(nomeCliente))}`;
+}
+
+async function enviarAvaliacao(locacaoId, nomeCliente){
+  if(!confirm(`Enviar o pedido de avaliação no Google para ${nomeCliente||'o cliente'} pelo WhatsApp?`)) return;
+  toast('⭐ Enviando pedido de avaliação...');
+  const res = await api('/loja/locacoes/'+locacaoId+'/avaliacao',{method:'POST',body:'{}'});
+  if(res && res.ok) toast('✅ Pedido de avaliação enviado pelo WhatsApp!');
+  else toast('⚠️ Não enviado: '+((res&&(res.error||res.erro))||'erro desconhecido'), true);
 }
 
 function gerarLinkAvaliacaoCliente(tel, nomeCliente){
@@ -4853,6 +4861,17 @@ def api_resolver_pendencia(locacao_id):
         return jsonify(lj.resolver_pendencia(locacao_id))
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/loja/locacoes/<int:locacao_id>/avaliacao", methods=["POST"])
+@requer_perfil("admin", "gerente", "vendedor")
+def api_enviar_avaliacao(locacao_id):
+    if not ct._get_token():
+        return jsonify({"error": "ClicksZap não configurado"}), 400
+    res = ct.enviar_mensagem_avaliacao(locacao_id)
+    if res.get("error"):
+        return jsonify(res), 400
+    return jsonify(res)
 
 
 @app.route("/api/loja/devolucao/grupo", methods=["POST"])
@@ -7309,6 +7328,28 @@ ADMIN_HTML = """<!DOCTYPE html>
         </div>
       </div>
 
+      <!-- ── Mensagem de Avaliação no Google ──────────────────────────────── -->
+      <div style="margin-top:2.2rem;padding-top:1.6rem;border-top:1px solid var(--border)">
+        <div class="toolbar" style="margin-bottom:1rem">
+          <h2 style="margin:0">⭐ Mensagem de Avaliação no Google</h2>
+          <button class="btn-add" onclick="salvarMsgAvaliacao()">💾 Salvar Mensagem</button>
+        </div>
+        <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem">
+          Enviada ao cliente quando você clica no botão <strong>⭐ Avaliação</strong> na tela
+          de Locações. Inclua o <strong>link da sua página de avaliações do Google</strong> no
+          texto. Use <code>{nome}</code> e <code>{jogo}</code> no texto.
+        </p>
+        <label style="font-size:.8rem;color:var(--muted);font-weight:700;display:block;margin-bottom:.4rem">MENSAGEM</label>
+        <textarea id="avaliacao-template" rows="7"
+          style="width:100%;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:8px;
+                 color:var(--text);font-family:inherit;font-size:.9rem;padding:.8rem;resize:vertical;line-height:1.6"
+          placeholder="Ex: Olá {nome}! Que tal nos avaliar no Google? https://g.page/..."></textarea>
+        <div style="display:flex;gap:1rem;margin-top:.5rem;flex-wrap:wrap">
+          <span style="font-size:.8rem;color:var(--muted)">Variáveis: <code>{nome}</code> · <code>{jogo}</code></span>
+          <button style="background:none;border:none;color:var(--muted);font-size:.8rem;cursor:pointer;padding:0" onclick="restaurarPadraoAvaliacao()">↩ Restaurar padrão</button>
+        </div>
+      </div>
+
       <div style="margin-top:1.8rem">
         <div class="toolbar" style="margin-bottom:.6rem">
           <h3 style="margin:0;font-size:1rem">📋 Histórico de Envios</h3>
@@ -7676,6 +7717,12 @@ async function carregarLembrete(){
     if(dv.template) document.getElementById('devolucao-template').value = dv.template;
     _msgDevolucaoPadrao = dv.padrao || '';
   }
+  // Mensagem de avaliação no Google
+  const av = await api('/admin/mensagem-avaliacao');
+  if(av){
+    if(av.template) document.getElementById('avaliacao-template').value = av.template;
+    _msgAvaliacaoPadrao = av.padrao || '';
+  }
   carregarLogLembretes();
 }
 
@@ -7689,6 +7736,19 @@ async function salvarMsgDevolucao(){
 
 function restaurarPadraoDevolucao(){
   if(_msgDevolucaoPadrao) document.getElementById('devolucao-template').value = _msgDevolucaoPadrao;
+}
+
+let _msgAvaliacaoPadrao = '';
+async function salvarMsgAvaliacao(){
+  const template = document.getElementById('avaliacao-template').value.trim();
+  if(!template){ toast('A mensagem não pode ser vazia', true); return; }
+  const res = await api('/admin/mensagem-avaliacao', {method:'POST', body:JSON.stringify({template})});
+  if(res && res.ok) toast('✅ Mensagem de avaliação salva!');
+  else toast((res&&res.erro)||'Erro ao salvar', true);
+}
+
+function restaurarPadraoAvaliacao(){
+  if(_msgAvaliacaoPadrao) document.getElementById('avaliacao-template').value = _msgAvaliacaoPadrao;
 }
 
 function fmtDataHora(s){
@@ -7955,6 +8015,24 @@ def api_salvar_msg_devolucao():
     if not template:
         return jsonify({"erro": "Template não pode ser vazio"}), 400
     ct.salvar_template_devolucao(template)
+    return jsonify({"ok": True})
+
+@app.route("/api/admin/mensagem-avaliacao", methods=["GET"])
+@requer_admin
+def api_get_msg_avaliacao():
+    return jsonify({
+        "template": ct.carregar_template_avaliacao(),
+        "padrao": ct.TEMPLATE_AVALIACAO_PADRAO
+    })
+
+@app.route("/api/admin/mensagem-avaliacao", methods=["POST"])
+@requer_admin
+def api_salvar_msg_avaliacao():
+    d = request.get_json()
+    template = (d.get("template") or "").strip()
+    if not template:
+        return jsonify({"erro": "Template não pode ser vazio"}), 400
+    ct.salvar_template_avaliacao(template)
     return jsonify({"ok": True})
 
 @app.route("/api/admin/lembrete", methods=["POST"])
