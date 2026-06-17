@@ -1433,11 +1433,18 @@ def enviar_mensagem_devolucao(locacao_id: int) -> dict:
         tel = "55" + tel
 
     mensagem = (carregar_template_devolucao()
-        .replace("{nome}", loc["cliente_nome"] or "Cliente")
+        .replace("{nome}", _primeiro_nome(loc["cliente_nome"]))
         .replace("{jogos}", loc["jogo_nome"] or "jogo")
         .replace("{jogo}", loc["jogo_nome"] or "jogo")
     )
     return _enviar_mensagem_whatsapp(tel, mensagem)
+
+
+def _primeiro_nome(nome) -> str:
+    """Retorna só o primeiro nome do cliente, para mensagens mais pessoais."""
+    if not nome:
+        return "cliente"
+    return str(nome).strip().split()[0]
 
 
 def _juntar_nomes(nomes: list) -> str:
@@ -1477,7 +1484,7 @@ def enviar_mensagem_devolucao_grupo(locacao_ids: list) -> dict:
 
     lista_jogos = _juntar_nomes([r["jogo_nome"] for r in rows])
     mensagem = (carregar_template_devolucao()
-        .replace("{nome}", cliente_nome)
+        .replace("{nome}", _primeiro_nome(cliente_nome))
         .replace("{jogos}", lista_jogos)
         .replace("{jogo}", lista_jogos)
     )
@@ -1545,7 +1552,7 @@ def enviar_mensagem_avaliacao(locacao_id: int) -> dict:
         tel = "55" + tel
 
     mensagem = (carregar_template_avaliacao()
-        .replace("{nome}", loc["cliente_nome"] or "Cliente")
+        .replace("{nome}", _primeiro_nome(loc["cliente_nome"]))
         .replace("{jogos}", loc["jogo_nome"] or "")
         .replace("{jogo}", loc["jogo_nome"] or "")
     )
@@ -1620,7 +1627,7 @@ def enviar_lembretes_devolucao() -> dict:
             continue
 
         mensagem = (template
-            .replace("{nome}", loc["cliente_nome"] or "Cliente")
+            .replace("{nome}", _primeiro_nome(loc["cliente_nome"]))
             .replace("{jogo}", loc["jogo_nome"] or "jogo")
             .replace("{data}", data_fmt)
         )
