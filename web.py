@@ -2485,12 +2485,7 @@ def painel():
 
 @app.route("/api/jogos")
 def listar():
-    try:
-        return jsonify([dict(j) for j in est.listar_jogos()])
-    except Exception as e:
-        import traceback
-        _log.error("[/api/jogos] %s", traceback.format_exc())
-        return jsonify({"error": str(e), "trace": traceback.format_exc()[-1500:]}), 500
+    return jsonify([dict(j) for j in est.listar_jogos()])
 
 
 # ── Categorias ────────────────────────────────────────────────────────────────
