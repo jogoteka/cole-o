@@ -6141,6 +6141,22 @@ CATALOGO_HTML = """<!DOCTYPE html>
     }
 
     // ── Compartilhar jogo via WhatsApp ───────────────────────────────────────
+    // Remove QUALQUER emoji do texto — inclusive os que vierem do cadastro do
+    // jogo (nome, editora, categoria, resumo). Alguns clientes de WhatsApp
+    // corrompem emojis e eles chegam como "?". Acentos, travessões, "·" e
+    // links são preservados.
+    function semEmojis(txt){
+      if(!txt) return "";
+      let s = String(txt);
+      try {
+        s = s.replace(/\\p{Extended_Pictographic}|[\\u{1F1E6}-\\u{1F1FF}]/gu, "");
+      } catch(e) {
+        s = s.replace(/[\\uD800-\\uDBFF][\\uDC00-\\uDFFF]/g, "");
+      }
+      s = s.replace(/[\\uFE0F\\u200D\\u20E3]/g, "");
+      return s.split("\\n").map(l => l.replace(/[ \\t]{2,}/g, " ").trim()).join("\\n");
+    }
+
     function buildShareBtn(j){
       return `<button class="share-btn" title="Compartilhar no WhatsApp" onclick="compartilharJogo(${j.id})">
         <span class="share-icon">📲</span>
@@ -6181,7 +6197,7 @@ CATALOGO_HTML = """<!DOCTYPE html>
       linhas.push("");
       linhas.push(`Veja no catálogo: ${link}`);
 
-      const msg = linhas.join("\\n");
+      const msg = semEmojis(linhas.join("\\n"));
       window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
     }
 
