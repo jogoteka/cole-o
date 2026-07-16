@@ -6171,20 +6171,16 @@ CATALOGO_HTML = """<!DOCTYPE html>
 
       const link = `${location.origin}/catalogo?cidade=${CIDADE}&jogo=${j.id}`;
 
-      const linhas = [
-        `🎲 *${j.nome}*`,
-        j.editora ? j.editora : "",
-        "",
-        infos,
-        resumo ? "" : "",
-        resumo,
-        "",
-        precos.join("\n"),
-        "",
-        `Veja no catálogo 👉 ${link}`,
-      ].filter((l,i,arr) => !(l === "" && arr[i-1] === "")); // evita linhas em branco duplicadas
+      const linhas = [];
+      linhas.push(`🎲 *${j.nome}*`);
+      if(j.editora) linhas.push(j.editora);
+      if(infos)  { linhas.push(""); linhas.push(infos); }
+      if(resumo) { linhas.push(""); linhas.push(resumo); }
+      if(precos.length){ linhas.push(""); precos.forEach(p => linhas.push(p)); }
+      linhas.push("");
+      linhas.push(`Veja no catálogo 👉 ${link}`);
 
-      const msg = linhas.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+      const msg = linhas.join("\\n");
       window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
     }
 
