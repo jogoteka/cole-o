@@ -6151,20 +6151,21 @@ CATALOGO_HTML = """<!DOCTYPE html>
       const j = todos.find(x => x.id === id);
       if(!j) return;
 
+      // Sem emojis no texto: alguns clientes de WhatsApp os corrompem (viram "?")
       const jogadores = (j.min_jogadores || j.max_jogadores)
-        ? `👥 ${j.min_jogadores||"?"}–${j.max_jogadores||"?"} jogadores` : "";
-      const tempo = j.tempo_jogo ? `⏱ ${j.tempo_jogo} min` : "";
-      const cat   = j.categoria ? `🎯 ${j.categoria}` : "";
-      const faixa = j.faixa_etaria ? `👶 ${j.faixa_etaria}` : "";
+        ? `${j.min_jogadores||"?"}–${j.max_jogadores||"?"} jogadores` : "";
+      const tempo = j.tempo_jogo ? `${j.tempo_jogo} min` : "";
+      const cat   = j.categoria ? j.categoria : "";
+      const faixa = j.faixa_etaria ? `${j.faixa_etaria}` : "";
       const infos = [jogadores, tempo, cat, faixa].filter(Boolean).join(" · ");
 
       const precos = [];
-      if(j.preco_venda != null) precos.push(`🛒 Comprar: ${fmtVal(j.preco_venda)}`);
+      if(j.preco_venda != null) precos.push(`Comprar: ${fmtVal(j.preco_venda)}`);
       const opc = [];
       if(j.loc1_dias && j.loc1_valor) opc.push(`${j.loc1_dias} dia${j.loc1_dias>1?"s":""} — ${fmtVal(j.loc1_valor)}`);
       if(j.loc2_dias && j.loc2_valor) opc.push(`${j.loc2_dias} dia${j.loc2_dias>1?"s":""} — ${fmtVal(j.loc2_valor)}`);
       if(j.loc3_dias && j.loc3_valor) opc.push(`${j.loc3_dias} dia${j.loc3_dias>1?"s":""} — ${fmtVal(j.loc3_valor)}`);
-      if(opc.length) precos.push(`🔑 Alugar: ${opc.join(" | ")}`);
+      if(opc.length) precos.push(`Alugar: ${opc.join(" | ")}`);
 
       let resumo = (j.resumo || "").trim();
       if(resumo.length > 200) resumo = resumo.slice(0,200).trim() + "…";
@@ -6172,13 +6173,13 @@ CATALOGO_HTML = """<!DOCTYPE html>
       const link = `${location.origin}/catalogo?cidade=${CIDADE}&jogo=${j.id}`;
 
       const linhas = [];
-      linhas.push(`🎲 *${j.nome}*`);
+      linhas.push(`*${j.nome}*`);
       if(j.editora) linhas.push(j.editora);
       if(infos)  { linhas.push(""); linhas.push(infos); }
       if(resumo) { linhas.push(""); linhas.push(resumo); }
       if(precos.length){ linhas.push(""); precos.forEach(p => linhas.push(p)); }
       linhas.push("");
-      linhas.push(`Veja no catálogo 👉 ${link}`);
+      linhas.push(`Veja no catálogo: ${link}`);
 
       const msg = linhas.join("\\n");
       window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
