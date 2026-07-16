@@ -5596,6 +5596,15 @@ CATALOGO_HTML = """<!DOCTYPE html>
     .fav-btn.favoritado{background:#fff5f5;border-color:#fc8181}
     .fav-btn .fav-icon{font-size:1rem;transition:transform .2s;line-height:1}
     .fav-btn.favoritado .fav-icon{transform:scale(1.25)}
+    .share-btn{display:inline-flex;align-items:center;
+      background:none;border:1.5px solid #b2f2d0;border-radius:999px;
+      padding:4px 8px;cursor:pointer;transition:all .18s}
+    .share-btn:hover{background:#eefdf4;border-color:#25D366;transform:scale(1.1)}
+    .share-btn .share-icon{font-size:1rem;transition:transform .2s;line-height:1}
+    .share-btn:hover .share-icon{transform:scale(1.15)}
+    /* destaque ao abrir jogo por link compartilhado */
+    @keyframes jogoPulse{0%{box-shadow:0 0 0 0 rgba(37,211,102,.5)}70%{box-shadow:0 0 0 14px rgba(37,211,102,0)}100%{box-shadow:0 0 0 0 rgba(37,211,102,0)}}
+    .card.jogo-destaque{border-color:#25D366;animation:jogoPulse 1.6s ease-out 2}
     /* ── Botão flutuante de cadastro ── */
     .fab-cadastro{position:fixed;bottom:1.5rem;right:1.5rem;z-index:50;
       background:var(--purple);color:#fff;border:none;border-radius:999px;
@@ -6131,6 +6140,54 @@ CATALOGO_HTML = """<!DOCTYPE html>
       </button>`;
     }
 
+    // ── Compartilhar jogo via WhatsApp ───────────────────────────────────────
+    function buildShareBtn(j){
+      return `<button class="share-btn" title="Compartilhar no WhatsApp" onclick="compartilharJogo(${j.id})">
+        <span class="share-icon">📲</span>
+      </button>`;
+    }
+
+    function compartilharJogo(id){
+      const j = todos.find(x => x.id === id);
+      if(!j) return;
+
+      const jogadores = (j.min_jogadores || j.max_jogadores)
+        ? `👥 ${j.min_jogadores||"?"}–${j.max_jogadores||"?"} jogadores` : "";
+      const tempo = j.tempo_jogo ? `⏱ ${j.tempo_jogo} min` : "";
+      const cat   = j.categoria ? `🎯 ${j.categoria}` : "";
+      const faixa = j.faixa_etaria ? `👶 ${j.faixa_etaria}` : "";
+      const infos = [jogadores, tempo, cat, faixa].filter(Boolean).join(" · ");
+
+      const precos = [];
+      if(j.preco_venda != null) precos.push(`🛒 Comprar: ${fmtVal(j.preco_venda)}`);
+      const opc = [];
+      if(j.loc1_dias && j.loc1_valor) opc.push(`${j.loc1_dias} dia${j.loc1_dias>1?"s":""} — ${fmtVal(j.loc1_valor)}`);
+      if(j.loc2_dias && j.loc2_valor) opc.push(`${j.loc2_dias} dia${j.loc2_dias>1?"s":""} — ${fmtVal(j.loc2_valor)}`);
+      if(j.loc3_dias && j.loc3_valor) opc.push(`${j.loc3_dias} dia${j.loc3_dias>1?"s":""} — ${fmtVal(j.loc3_valor)}`);
+      if(opc.length) precos.push(`🔑 Alugar: ${opc.join(" | ")}`);
+
+      let resumo = (j.resumo || "").trim();
+      if(resumo.length > 200) resumo = resumo.slice(0,200).trim() + "…";
+
+      const link = `${location.origin}/catalogo?cidade=${CIDADE}&jogo=${j.id}`;
+
+      const linhas = [
+        `🎲 *${j.nome}*`,
+        j.editora ? j.editora : "",
+        "",
+        infos,
+        resumo ? "" : "",
+        resumo,
+        "",
+        precos.join("\n"),
+        "",
+        `Veja no catálogo 👉 ${link}`,
+      ].filter((l,i,arr) => !(l === "" && arr[i-1] === "")); // evita linhas em branco duplicadas
+
+      const msg = linhas.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+      window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+    }
+
     async function toggleFav(jogoId, btn){
       if(!_cadToken){ abrirModalCad(); return; }
       const r = await fetch(`/api/catalogo/favoritos/${jogoId}?token=${_cadToken}`, {method:"POST"});
@@ -6412,7 +6469,7 @@ CATALOGO_HTML = """<!DOCTYPE html>
       ].filter(Boolean).join("");
 
       return `
-        <div class="card" data-nome="${j.nome.toLowerCase()}" data-cat="${(j.categoria||"").toLowerCase()}" data-disp="${disp?1:0}">
+        <div class="card" id="jogo-${j.id}" data-nome="${j.nome.toLowerCase()}" data-cat="${(j.categoria||"").toLowerCase()}" data-disp="${disp?1:0}">
           <div class="card-img-wrap">
             ${j.imagem ? `<img src="/api/imagens/${j.imagem}" alt="${j.nome}" onerror="this.parentElement.innerHTML='<span class=no-img>🎲</span>'">` : `<span class="no-img">🎲</span>`}
             ${buildBadges(j)}
@@ -6428,6 +6485,7 @@ CATALOGO_HTML = """<!DOCTYPE html>
                 <div style="display:flex;align-items:center;gap:.4rem">
                   ${buildCurtirBtn(j)}
                   ${buildFavBtn(j)}
+                  ${buildShareBtn(j)}
                 </div>
               </div>
               ${j.video_url ? `<button class="btn-video-cat" onclick="abrirVideoCat('${encodeURIComponent(j.video_url)}','${j.nome.replace(/'/g,'')}')">▶ Ver vídeo</button>` : ""}
@@ -6551,6 +6609,21 @@ CATALOGO_HTML = """<!DOCTYPE html>
       popularFiltrosCatalogo();
       renderSemana();
       filtrar();
+      abrirJogoDeLink();
+    }
+
+    // Se a URL tiver ?jogo=ID (link compartilhado), rola até o jogo e o destaca
+    function abrirJogoDeLink(){
+      const params = new URLSearchParams(location.search);
+      const id = parseInt(params.get("jogo") || "", 10);
+      if(!id) return;
+      setTimeout(() => {
+        const el = document.getElementById("jogo-" + id);
+        if(!el) return;
+        el.scrollIntoView({behavior:"smooth", block:"center"});
+        el.classList.add("jogo-destaque");
+        setTimeout(() => el.classList.remove("jogo-destaque"), 3600);
+      }, 400);
     }
 
     init();
