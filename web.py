@@ -208,7 +208,6 @@ HTML = """<!DOCTYPE html>
     .multa-tag{background:rgba(241,10,10,.1);border:1px solid rgba(241,10,10,.3);
       border-radius:6px;padding:2px 8px;font-size:.75rem;color:#fc8181;margin-top:.4rem;display:inline-block}
     .qty{font-size:1.8rem;font-weight:800}
-    .qty.alert{color:var(--red)}.qty.ok{color:var(--green)}
     .label{font-size:.72rem;color:var(--muted)}
     .actions{display:flex;gap:.4rem;margin-top:.8rem;flex-wrap:wrap}
     button{border:none;border-radius:6px;padding:.4rem .85rem;cursor:pointer;font-size:.82rem;font-family:'Nunito',sans-serif;font-weight:700}
@@ -223,10 +222,6 @@ HTML = """<!DOCTYPE html>
     .btn-add{background:var(--orange);color:white;padding:.55rem 1.3rem;font-size:.92rem;
       border-radius:8px;font-family:'Fredoka One',cursive;letter-spacing:.5px;border:none}
     .btn-add:hover{filter:brightness(1.1)}
-
-    /* ── Alertas ── */
-    .alert-banner{background:rgba(241,10,10,.1);border:1px solid rgba(241,10,10,.3);
-      border-radius:8px;padding:.75rem 1.1rem;margin-bottom:1.2rem;color:#fc8181;font-size:.88rem;font-weight:600}
 
     /* ── Tabelas ── */
     section{margin-bottom:2rem}
@@ -335,7 +330,6 @@ HTML = """<!DOCTYPE html>
     </div>
     <div class="header-sub">Gestão de Estoque</div>
   </div>
-  <span id="alert-badge" class="badge" style="display:none"></span>
   <nav>
     <button class="active" id="nav-fin" onclick="showSecao('financeiro',this)">💼 Financeiro</button>
     <button id="nav-dash" onclick="showSecao('dashboard',this)">📈 Dashboard</button>
@@ -355,7 +349,6 @@ HTML = """<!DOCTYPE html>
 <main>
   <!-- ESTOQUE -->
   <div class="page active" id="page-estoque">
-    <div id="alert-banner"></div>
     <div class="toolbar">
       <input type="search" id="busca" placeholder="Buscar jogo…" oninput="filtrarCards()">
       <button class="btn-add" onclick="openAddModal()">+ Adicionar Jogo</button>
@@ -861,11 +854,6 @@ async function load(){
   try {
     todosJogos = await api('/jogos');
     if(!Array.isArray(todosJogos)) todosJogos = [];
-    const alertas = todosJogos.filter(j=>j.quantidade<=j.quantidade_minima);
-    document.getElementById('alert-badge').textContent = alertas.length ? alertas.length+' alerta(s)' : '';
-    document.getElementById('alert-badge').style.display = alertas.length ? '' : 'none';
-    document.getElementById('alert-banner').innerHTML = alertas.length
-      ? '<div class="alert-banner">⚠️ Estoque baixo: '+alertas.map(j=>j.nome).join(', ')+'</div>' : '';
     renderCards(todosJogos);
   } catch(e){ console.error('[load]', e); }
   // opções do form carregadas lazily ao abrir o modal
@@ -929,8 +917,8 @@ function renderCards(jogos){
           ${j.video_url ? `<button class="btn-video" onclick="abrirVideo('${encodeURIComponent(j.video_url)}')">▶ Ver vídeo</button>` : ''}
         </div>
         ${fmtLocacao(j)}
-        <div class="qty ${j.quantidade<=j.quantidade_minima?'alert':'ok'}">${j.quantidade}</div>
-        <div class="label">unidades em estoque (mín: ${j.quantidade_minima})</div>
+        <div class="qty">${j.quantidade}</div>
+        <div class="label">unidades em estoque</div>
         <div class="actions">
           <button class="btn-in"   onclick="openMov(${j.id},'entrada')">+ Entrada</button>
           <button class="btn-out"  onclick="openMov(${j.id},'saida')">− Saída</button>
