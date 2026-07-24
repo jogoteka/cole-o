@@ -4516,7 +4516,7 @@ async function loadLocacoes(){
 
     const telLimpo = (r.cliente_tel||'').replace(/\D/g,'');
     const btnAvaliacaoLoc = `<button class="btn-whatsapp" style="background:#4285F4;font-size:.75rem;border:none;cursor:pointer" onclick="enviarAvaliacao(${r.id},'${(r.cliente_nome||'').replace(/'/g,"\\'")}')">⭐ Avaliação</button>`;
-    const btnEditLoc = `<button class="btn-devolver" style="font-size:.75rem" onclick="abrirEdicao('locacao',${r.id},'${r.forma_pagamento||''}','${(r.atendente||'').replace(/'/g,"\\'")}','${(r.observacao||'').replace(/'/g,"\\'")}',${r.opcao_dias||0},'${r.data_saida||''}')">✏️</button>`;
+    const btnEditLoc = `<button class="btn-devolver" style="font-size:.75rem" onclick="abrirEdicao('locacao',${r.id},'${r.forma_pagamento||''}','${(r.atendente||'').replace(/'/g,"\\'")}','${(r.observacao||'').replace(/'/g,"\\'")}',${r.opcao_dias||0},'${r.data_saida||''}','${r.data_devolucao||''}',${r.valor_multa!=null?r.valor_multa:'null'},'${r.status||''}')">✏️</button>`;
     const btnExcluirLoc = `<button class="btn-devolver" style="font-size:.75rem;color:var(--red);border-color:var(--red)" onclick="excluirLocacao(${r.id},'${(r.jogo_nome||'').replace(/'/g,"\\'")}','${(r.cliente_nome||'').replace(/'/g,"\\'")}')">🗑️</button>`;
 
     // Condição do jogo na devolução
@@ -4648,7 +4648,7 @@ function fecharSeFora(e,id){ if(e.target===document.getElementById(id)) closeMod
 let editTipo = null;
 let editId   = null;
 
-function abrirEdicao(tipo, id, forma_pagamento, atendente, observacao, opcao_dias, data_saida){
+function abrirEdicao(tipo, id, forma_pagamento, atendente, observacao, opcao_dias, data_saida, data_devolucao, valor_multa, status){
   editTipo = tipo;
   editId   = id;
   document.getElementById('edit-titulo').textContent = tipo === 'venda' ? '✏️ Editar Venda' : '✏️ Editar Locação';
@@ -4661,6 +4661,14 @@ function abrirEdicao(tipo, id, forma_pagamento, atendente, observacao, opcao_dia
   if(tipo === 'locacao'){
     document.getElementById('edit-dias').value      = opcao_dias || '';
     document.getElementById('edit-data-saida').value = data_saida || '';
+  }
+  // Devolução + multa: só para locação já devolvida ou pendente (recebimento efetuado)
+  const jaRecebida = tipo === 'locacao' && (status === 'devolvido' || status === 'pendente');
+  const devRow = document.getElementById('edit-devolucao-row');
+  devRow.style.display = jaRecebida ? '' : 'none';
+  if(jaRecebida){
+    document.getElementById('edit-data-devolucao').value = data_devolucao || '';
+    document.getElementById('edit-multa').value = (valor_multa != null) ? valor_multa : '';
   }
   document.getElementById('modal-edit').classList.add('open');
 }
@@ -4676,6 +4684,12 @@ async function salvarEdicao(){
   if(editTipo === 'locacao'){
     body.opcao_dias  = parseInt(document.getElementById('edit-dias').value) || null;
     body.data_saida  = document.getElementById('edit-data-saida').value || null;
+    // Só envia devolução/multa quando o bloco está visível (locação já recebida)
+    if(document.getElementById('edit-devolucao-row').style.display !== 'none'){
+      body.data_devolucao = document.getElementById('edit-data-devolucao').value || null;
+      const m = document.getElementById('edit-multa').value;
+      body.valor_multa = (m === '' || m == null) ? 0 : parseFloat(m);
+    }
   }
   const res = await fetch(`/api/loja/${editTipo}/${editId}`, {
     method: 'PATCH',
@@ -4709,6 +4723,17 @@ loadCatalogo();
           </div>
         </div>
         <p style="font-size:.75rem;color:var(--orange);margin-bottom:.8rem">⚠️ A devolução prevista será recalculada automaticamente.</p>
+      </div>
+      <div id="edit-devolucao-row" style="display:none">
+        <div class="row2" style="margin-bottom:.4rem">
+          <div><label>Data de devolução</label>
+            <input id="edit-data-devolucao" type="date">
+          </div>
+          <div><label>Valor da multa (R$)</label>
+            <input id="edit-multa" type="number" min="0" step="0.01" placeholder="0,00">
+          </div>
+        </div>
+        <p style="font-size:.75rem;color:var(--muted);margin-bottom:.8rem">Corrija aqui se o recebimento do jogo foi lançado com data ou multa errada.</p>
       </div>
       <label>Forma de pagamento</label>
       <select id="edit-pagamento">
@@ -4759,12 +4784,24 @@ def api_editar_locacao(locacao_id):
         data_saida  = d.get("data_saida") or loc["data_saida"]
         opcao_dias  = d.get("opcao_dias") or loc["opcao_dias"]
         data_prevista = (date.fromisoformat(data_saida) + timedelta(days=int(opcao_dias))).isoformat()
-        conn.execute("""UPDATE locacoes
-                        SET forma_pagamento=?, atendente=?, observacao=?,
-                            opcao_dias=?, data_saida=?, data_prevista=?
-                        WHERE id=?""",
-                     (d.get("forma_pagamento"), d.get("atendente"), d.get("observacao"),
-                      opcao_dias, data_saida, data_prevista, locacao_id))
+
+        campos = ["forma_pagamento=?", "atendente=?", "observacao=?",
+                  "opcao_dias=?", "data_saida=?", "data_prevista=?"]
+        valores = [d.get("forma_pagamento"), d.get("atendente"), d.get("observacao"),
+                   opcao_dias, data_saida, data_prevista]
+        # Correção do recebimento: só atualiza se enviados
+        if "data_devolucao" in d:
+            campos.append("data_devolucao=?")
+            valores.append(d.get("data_devolucao") or None)
+        if "valor_multa" in d:
+            try:
+                multa = float(d.get("valor_multa") or 0)
+            except (TypeError, ValueError):
+                multa = 0
+            campos.append("valor_multa=?")
+            valores.append(multa)
+        valores.append(locacao_id)
+        conn.execute(f"UPDATE locacoes SET {', '.join(campos)} WHERE id=?", valores)
     return jsonify({"ok": True, "data_prevista": data_prevista})
 
 
