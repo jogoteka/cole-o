@@ -3190,8 +3190,8 @@ LOJA_HTML = """<!DOCTYPE html>
     </div>
     <div class="modal-body">
       <div class="modal-tabs">
-        <button class="modal-tab active-venda" id="tab-venda" onclick="switchTab('venda')">💰 Vender</button>
-        <button class="modal-tab" id="tab-locacao" onclick="switchTab('locacao')">🔑 Locar</button>
+        <button class="modal-tab active-locacao" id="tab-locacao" onclick="switchTab('locacao')">🔑 Locar</button>
+        <button class="modal-tab" id="tab-venda" onclick="switchTab('venda')">💰 Vender</button>
       </div>
 
       <!-- VENDA -->
@@ -3459,7 +3459,7 @@ LOJA_HTML = """<!DOCTYPE html>
 
 <script>
 let jogoAtual = null;
-let tabAtual = 'venda';
+let tabAtual = 'locacao';
 let locOpcaoSel = null;
 let _locGrupo   = []; // jogos acumulados no modo multi-locação
 let locacaoDevId = null;
@@ -3841,7 +3841,7 @@ function abrirModal(id){
     : '<p style="color:#666;font-size:.85rem">Nenhuma opção de locação cadastrada para este jogo.</p>';
   document.getElementById('loc-opcoes').innerHTML = locHtml;
 
-  switchTab('venda');
+  switchTab('locacao');
   calcVenda();
   document.getElementById('modal-op').classList.add('open');
 }
