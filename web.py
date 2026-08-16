@@ -3032,6 +3032,7 @@ LOJA_HTML = """<!DOCTYPE html>
     <button class="tab-btn active" onclick="showTab('catalogo',this)">🎲 Catálogo</button>
     <button class="tab-btn green" onclick="showTab('vendas',this)">💰 Vendas</button>
     <button class="tab-btn purple" onclick="showTab('locacoes',this)">🔑 Locações</button>
+    <button class="tab-btn" onclick="showTab('clientes',this)">👥 Clientes</button>
     <button class="tab-btn" onclick="showTab('cupons',this)">🎟️ Cupons</button>
     <button class="tab-btn" onclick="showTab('contrato-modelo',this)">📝 Contrato</button>
   </div>
@@ -3068,6 +3069,53 @@ LOJA_HTML = """<!DOCTYPE html>
       <thead><tr><th>Jogo</th><th>Cliente</th><th>Atendente</th><th>Saída</th><th>Devolução prevista</th><th>Status</th><th>Valor</th><th>Pagamento</th><th>Multa</th><th>Condição</th><th>Recebimento</th><th>Ações</th></tr></thead>
       <tbody id="body-locacoes"></tbody>
     </table>
+  </div>
+
+  <div class="page" id="page-clientes">
+    <div class="section-title">👥 Cadastro de Clientes</div>
+    <div style="display:grid;grid-template-columns:minmax(320px,420px) 1fr;gap:1.5rem;align-items:start">
+      <!-- Formulário -->
+      <div style="background:var(--dark3,#16213e);border:1px solid var(--border);border-radius:12px;padding:1.1rem">
+        <div class="section-label" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem">
+          <span id="cli-form-titulo">Novo cliente</span>
+          <button type="button" class="btn-devolver" style="font-size:.72rem" onclick="novoCliente()">+ Novo</button>
+        </div>
+        <input type="hidden" id="c-id">
+        <div class="cpf-busca-row">
+          <div style="flex:1"><label>CPF</label><input id="c-cpf" placeholder="000.000.000-00" oninput="mascCPF(this)"></div>
+          <button type="button" class="btn-buscar-cpf" onclick="buscarClienteCadastro()">🔍 Buscar</button>
+        </div>
+        <input id="c-nome" placeholder="Nome completo" style="margin-top:.5rem">
+        <div class="row2">
+          <div><label>Telefone</label><input id="c-tel" placeholder="(00) 00000-0000"></div>
+          <div><label>Data de nascimento</label><input id="c-nasc" type="text" placeholder="DD/MM" maxlength="5" oninput="mascDDMM(this)"></div>
+        </div>
+        <div><label>Instagram</label><input id="c-insta" placeholder="@usuario"></div>
+        <div style="margin-top:.6rem;font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Endereço</div>
+        <div class="row2" style="margin-top:.3rem">
+          <div style="flex:0 0 140px"><label>CEP</label><input id="c-cep" placeholder="00000-000" oninput="buscarCEP('c')"></div>
+          <div style="flex:1"><label>Logradouro</label><input id="c-logradouro" placeholder="Rua / Av."></div>
+        </div>
+        <div class="row2">
+          <div style="flex:0 0 100px"><label>Número</label><input id="c-numero" placeholder="Nº"></div>
+          <div style="flex:1"><label>Complemento</label><input id="c-complemento" placeholder="Apto, bloco..."></div>
+        </div>
+        <div class="row2">
+          <div style="flex:1"><label>Bairro</label><input id="c-bairro" placeholder="Bairro"></div>
+          <div style="flex:1"><label>Cidade</label><input id="c-cidade" placeholder="Cidade"></div>
+          <div style="flex:0 0 60px"><label>UF</label><input id="c-estado" placeholder="SP" maxlength="2"></div>
+        </div>
+        <button class="btn-vender" style="width:100%;margin-top:1rem" onclick="salvarCliente()">💾 Salvar cliente</button>
+      </div>
+      <!-- Lista -->
+      <div>
+        <input type="search" id="busca-clientes" placeholder="Buscar por nome, CPF ou @instagram…" oninput="filtrarClientes()" style="width:100%;margin-bottom:.8rem">
+        <table class="hist-table">
+          <thead><tr><th>Nome</th><th>CPF</th><th>Telefone</th><th>Cidade</th><th></th></tr></thead>
+          <tbody id="body-clientes"></tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
   <div class="page" id="page-cupons">
@@ -3487,6 +3535,7 @@ function showTab(name, btn){
   if(name==='catalogo') loadCatalogo();
   if(name==='vendas') loadVendas();
   if(name==='locacoes') loadLocacoes();
+  if(name==='clientes') loadClientes();
   if(name==='cupons'){ loadCupons(); loadUsosCupons(); }
   if(name==='contrato-modelo') lojaLoadModeloContrato();
 }
@@ -3981,6 +4030,102 @@ async function buscarClienteCPF(p, forcar=false){
     if(c && c.id){ mostrarClienteEncontrado(p, c); toast(`✔ Cliente encontrado: ${c.nome}`); }
     else if(forcar){ toast('CPF não encontrado. Preencha os dados.',true); }
   }, forcar ? 0 : 400);
+}
+
+// ── Cadastro de Clientes (tela dedicada) ────────────────────────────────────
+let _clientesCache = [];
+
+async function loadClientes(){
+  const rows = await api('/clientes');
+  _clientesCache = Array.isArray(rows) ? rows : [];
+  renderClientes(_clientesCache);
+}
+
+function renderClientes(rows){
+  const tbody = document.getElementById('body-clientes');
+  if(!rows.length){
+    tbody.innerHTML = '<tr><td colspan="5" class="empty">Nenhum cliente cadastrado</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(c=>`
+    <tr>
+      <td><strong style="color:white">${c.nome||'—'}</strong>${c.instagram?`<br><span style="color:#666;font-size:.75rem">${c.instagram}</span>`:''}</td>
+      <td>${c.cpf||'—'}</td>
+      <td>${c.telefone||'—'}</td>
+      <td>${c.cidade||'—'}</td>
+      <td><button class="btn-devolver" style="font-size:.72rem" onclick="editarClienteCadastro(${c.id})">✏️ Editar</button></td>
+    </tr>`).join('');
+}
+
+function filtrarClientes(){
+  const q = document.getElementById('busca-clientes').value.toLowerCase();
+  renderClientes(_clientesCache.filter(c=>
+    (c.nome||'').toLowerCase().includes(q) ||
+    (c.cpf||'').toLowerCase().includes(q) ||
+    (c.instagram||'').toLowerCase().includes(q)
+  ));
+}
+
+function preencherFormCadastro(c){
+  document.getElementById('c-id').value          = c.id || '';
+  document.getElementById('c-cpf').value         = c.cpf || '';
+  document.getElementById('c-nome').value        = c.nome || '';
+  document.getElementById('c-tel').value         = c.telefone || '';
+  document.getElementById('c-nasc').value        = c.data_nascimento || '';
+  document.getElementById('c-insta').value       = c.instagram || '';
+  document.getElementById('c-cep').value         = c.cep || '';
+  document.getElementById('c-logradouro').value  = c.logradouro || '';
+  document.getElementById('c-numero').value      = c.numero || '';
+  document.getElementById('c-complemento').value = c.complemento || '';
+  document.getElementById('c-bairro').value      = c.bairro || '';
+  document.getElementById('c-cidade').value      = c.cidade || '';
+  document.getElementById('c-estado').value      = c.estado || '';
+  document.getElementById('cli-form-titulo').textContent = c.id ? 'Editando cliente' : 'Novo cliente';
+}
+
+function novoCliente(){
+  preencherFormCadastro({});
+}
+
+function editarClienteCadastro(id){
+  const c = _clientesCache.find(x=>x.id===id);
+  if(c){ preencherFormCadastro(c); window.scrollTo({top:0, behavior:'smooth'}); }
+}
+
+async function buscarClienteCadastro(){
+  const cpf = document.getElementById('c-cpf').value.replace(/\\D/g,'');
+  if(cpf.length < 11){ toast('Digite o CPF completo para buscar', true); return; }
+  const c = await api('/loja/cliente?cpf='+cpf);
+  if(c && c.id){ preencherFormCadastro(c); toast(`✔ Cliente encontrado: ${c.nome}`); }
+  else toast('CPF não encontrado — preencha os dados para cadastrar.', true);
+}
+
+async function salvarCliente(){
+  const nome = document.getElementById('c-nome').value.trim();
+  if(!nome){ toast('Informe o nome do cliente', true); return; }
+  const body = {
+    id:              document.getElementById('c-id').value || null,
+    cpf:             document.getElementById('c-cpf').value || null,
+    nome:            nome,
+    telefone:        document.getElementById('c-tel').value || null,
+    data_nascimento: document.getElementById('c-nasc').value || null,
+    instagram:       document.getElementById('c-insta').value || null,
+    cep:             document.getElementById('c-cep').value || null,
+    logradouro:      document.getElementById('c-logradouro').value || null,
+    numero:          document.getElementById('c-numero').value || null,
+    complemento:     document.getElementById('c-complemento').value || null,
+    bairro:          document.getElementById('c-bairro').value || null,
+    cidade:          document.getElementById('c-cidade').value || null,
+    estado:          document.getElementById('c-estado').value || null,
+  };
+  const res = await api('/clientes', {method:'POST', body:JSON.stringify(body)});
+  if(res && res.ok){
+    toast('✅ Cliente salvo!');
+    novoCliente();
+    loadClientes();
+  } else {
+    toast((res&&(res.error||res.erro))||'Erro ao salvar cliente', true);
+  }
 }
 
 function setDescTipoLoc(tipo, el){
@@ -4939,6 +5084,23 @@ def api_buscar_cliente():
     if c:
         return jsonify(dict(c))
     return jsonify(None)
+
+
+# Lista/cadastro de clientes — protegidos por login (dados sensíveis: CPF, telefone, endereço)
+@app.route("/api/clientes", methods=["GET"])
+@requer_login
+def api_listar_clientes():
+    return jsonify([dict(c) for c in lj.listar_clientes()])
+
+
+@app.route("/api/clientes", methods=["POST"])
+@requer_login
+def api_salvar_cliente():
+    d = request.get_json() or {}
+    if not (d.get("nome") or "").strip():
+        return jsonify({"error": "Informe o nome do cliente"}), 400
+    cid = lj.salvar_cliente(d)
+    return jsonify({"ok": True, "id": cid})
 
 
 @app.route("/api/loja/vendas")

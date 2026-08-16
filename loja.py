@@ -41,6 +41,24 @@ def buscar_ou_criar_cliente(dados):
         return cur.lastrowid
 
 
+def salvar_cliente(dados):
+    """Cria ou atualiza um cliente (tela de cadastro dedicada).
+    Se vier 'id', atualiza aquele cliente; senão, faz upsert por CPF."""
+    cid = dados.get("id")
+    if not cid:
+        return buscar_ou_criar_cliente(dados)
+    with get_connection() as conn:
+        conn.execute("""UPDATE clientes SET nome=?, cpf=?, instagram=?, telefone=?, data_nascimento=?,
+                        cep=?, logradouro=?, numero=?, complemento=?, bairro=?, cidade=?, estado=?
+                        WHERE id=?""",
+                     (dados.get("nome", "").strip(), (dados.get("cpf") or "").strip() or None,
+                      dados.get("instagram"), dados.get("telefone"), dados.get("data_nascimento"),
+                      dados.get("cep"), dados.get("logradouro"), dados.get("numero"),
+                      dados.get("complemento"), dados.get("bairro"), dados.get("cidade"),
+                      dados.get("estado"), cid))
+    return cid
+
+
 def listar_clientes(busca=None):
     with get_connection() as conn:
         if busca:
