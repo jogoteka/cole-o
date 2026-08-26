@@ -3082,7 +3082,7 @@ LOJA_HTML = """<!DOCTYPE html>
         </div>
         <input type="hidden" id="c-id">
         <div class="cpf-busca-row">
-          <div style="flex:1"><label>CPF</label><input id="c-cpf" placeholder="000.000.000-00" oninput="mascCPF(this)"></div>
+          <div style="flex:1"><label>CPF / CNPJ</label><input id="c-cpf" placeholder="CPF ou CNPJ" oninput="mascCPF(this)"></div>
           <button type="button" class="btn-buscar-cpf" onclick="buscarClienteCadastro()">🔍 Buscar</button>
         </div>
         <input id="c-nome" placeholder="Nome completo" style="margin-top:.5rem">
@@ -3244,7 +3244,7 @@ LOJA_HTML = """<!DOCTYPE html>
         </div>
         <div id="v-cliente-form">
           <div class="cpf-busca-row">
-            <div style="flex:1"><label>CPF</label><input id="v-cpf" placeholder="000.000.000-00" oninput="mascCPF(this);buscarClienteCPF('v')"></div>
+            <div style="flex:1"><label>CPF / CNPJ</label><input id="v-cpf" placeholder="CPF ou CNPJ" oninput="mascCPF(this);buscarClienteCPF('v')"></div>
             <button type="button" class="btn-buscar-cpf" onclick="buscarClienteCPF('v',true)">🔍 Buscar</button>
           </div>
           <input id="v-nome" placeholder="Nome completo" style="margin-top:.5rem">
@@ -3330,7 +3330,7 @@ LOJA_HTML = """<!DOCTYPE html>
         </div>
         <div id="l-cliente-form">
           <div class="cpf-busca-row">
-            <div style="flex:1"><label>CPF</label><input id="l-cpf" placeholder="000.000.000-00" oninput="mascCPF(this);buscarClienteCPF('l')"></div>
+            <div style="flex:1"><label>CPF / CNPJ</label><input id="l-cpf" placeholder="CPF ou CNPJ" oninput="mascCPF(this);buscarClienteCPF('l')"></div>
             <button type="button" class="btn-buscar-cpf" onclick="buscarClienteCPF('l',true)">🔍 Buscar</button>
           </div>
           <input id="l-nome" placeholder="Nome completo" style="margin-top:.5rem">
@@ -3970,10 +3970,17 @@ function mascDDMM(el){
 }
 
 function mascCPF(el){
-  let v = el.value.replace(/\D/g,'').slice(0,11);
-  if(v.length > 9) v = v.slice(0,3)+'.'+v.slice(3,6)+'.'+v.slice(6,9)+'-'+v.slice(9);
-  else if(v.length > 6) v = v.slice(0,3)+'.'+v.slice(3,6)+'.'+v.slice(6);
-  else if(v.length > 3) v = v.slice(0,3)+'.'+v.slice(3);
+  // Aceita CPF (11 dígitos) ou CNPJ (14 dígitos), formatando conforme o tamanho
+  let v = el.value.replace(/\D/g,'').slice(0,14);
+  if(v.length <= 11){
+    // CPF: 000.000.000-00
+    if(v.length > 9) v = v.slice(0,3)+'.'+v.slice(3,6)+'.'+v.slice(6,9)+'-'+v.slice(9);
+    else if(v.length > 6) v = v.slice(0,3)+'.'+v.slice(3,6)+'.'+v.slice(6);
+    else if(v.length > 3) v = v.slice(0,3)+'.'+v.slice(3);
+  } else {
+    // CNPJ: 00.000.000/0000-00
+    v = v.slice(0,2)+'.'+v.slice(2,5)+'.'+v.slice(5,8)+'/'+v.slice(8,12)+(v.length>12?'-'+v.slice(12):'');
+  }
   el.value = v;
 }
 
@@ -4024,7 +4031,7 @@ let _cpfTimer = {};
 async function buscarClienteCPF(p, forcar=false){
   const cpf = document.getElementById(p+'-cpf').value.replace(/\D/g,'');
   clearTimeout(_cpfTimer[p]);
-  if(cpf.length < 11 && !forcar) return;
+  if(cpf.length !== 11 && cpf.length !== 14 && !forcar) return;
   _cpfTimer[p] = setTimeout(async ()=>{
     const c = await api('/loja/cliente?cpf='+cpf);
     if(c && c.id){ mostrarClienteEncontrado(p, c); toast(`✔ Cliente encontrado: ${c.nome}`); }
@@ -4094,10 +4101,10 @@ function editarClienteCadastro(id){
 
 async function buscarClienteCadastro(){
   const cpf = document.getElementById('c-cpf').value.replace(/\\D/g,'');
-  if(cpf.length < 11){ toast('Digite o CPF completo para buscar', true); return; }
+  if(cpf.length !== 11 && cpf.length !== 14){ toast('Digite o CPF ou CNPJ completo para buscar', true); return; }
   const c = await api('/loja/cliente?cpf='+cpf);
   if(c && c.id){ preencherFormCadastro(c); toast(`✔ Cliente encontrado: ${c.nome}`); }
-  else toast('CPF não encontrado — preencha os dados para cadastrar.', true);
+  else toast('Documento não encontrado — preencha os dados para cadastrar.', true);
 }
 
 async function salvarCliente(){
@@ -5078,7 +5085,7 @@ def api_buscar_cliente():
     if not cpf:
         return jsonify(None)
     cpf_digits = re.sub(r'\D', '', cpf)
-    if len(cpf_digits) != 11:
+    if len(cpf_digits) not in (11, 14):  # CPF ou CNPJ
         return jsonify(None)
     c = lj.buscar_cliente_por_cpf(cpf_digits)
     if c:
