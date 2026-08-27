@@ -1235,6 +1235,36 @@ def _bearer_auth():
     return _BearerAuth()
 
 
+def _post_clickszap(hx, url, *, tentativas=3, esperas=(6, 12), timeout=40, **kwargs):
+    """
+    POST resiliente ao 'cold start' do Render: o ClicksZap (plano free) hiberna
+    após ~15 min sem uso e demora ~30-60s para acordar no primeiro acesso.
+    Repete automaticamente em caso de timeout/erro de conexão ou 502/503/504,
+    aguardando o serviço subir — assim o primeiro envio não falha para o usuário.
+    """
+    import time
+    ultimo_erro = None
+    resp = None
+    for i in range(tentativas):
+        try:
+            resp = hx.post(url, timeout=timeout, follow_redirects=True, **kwargs)
+            if resp.status_code in (502, 503, 504) and i < tentativas - 1:
+                logger.warning("[contratos] ClicksZap %s (acordando?), tentativa %d/%d",
+                               resp.status_code, i + 1, tentativas)
+                time.sleep(esperas[min(i, len(esperas) - 1)])
+                continue
+            return resp
+        except Exception as e:
+            ultimo_erro = e
+            logger.warning("[contratos] conexão ClicksZap falhou (tentativa %d/%d): %s",
+                           i + 1, tentativas, e)
+            if i < tentativas - 1:
+                time.sleep(esperas[min(i, len(esperas) - 1)])
+    if ultimo_erro is not None:
+        raise ultimo_erro
+    return resp
+
+
 def enviar_contrato(locacao_id: int) -> dict:
     """
     Gera o PDF, faz upload no ClicksZap e cria a solicitação de assinatura.
@@ -1279,12 +1309,10 @@ def enviar_contrato(locacao_id: int) -> dict:
     try:
         upload_url = f"{CLICKSZAP_URL}/documents"
         logger.info("[contratos] POST %s (PDF %d bytes)", upload_url, len(pdf_bytes))
-        resp = hx.post(
-            upload_url,
+        resp = _post_clickszap(
+            hx, upload_url,
             auth=auth,
             files={"file": (nome_pdf, pdf_bytes, "application/pdf")},
-            timeout=30,
-            follow_redirects=True,
         )
         logger.info("[contratos] Upload resposta: %s — %s", resp.status_code, resp.text[:300])
         if resp.status_code != 201:
@@ -1297,16 +1325,14 @@ def enviar_contrato(locacao_id: int) -> dict:
 
     # 3. Cria solicitação de assinatura (dispara WhatsApp automaticamente)
     try:
-        resp = hx.post(
-            f"{CLICKSZAP_URL}/signature-requests",
+        resp = _post_clickszap(
+            hx, f"{CLICKSZAP_URL}/signature-requests",
             auth=auth,
             json={
                 "document_id": document_id,
                 "signer_name": cliente_nome,
                 "signer_phone": cliente_tel,
             },
-            timeout=30,
-            follow_redirects=True,
         )
         if resp.status_code != 201:
             logger.error("[contratos] Signature request falhou: %s %s", resp.status_code, resp.text)
@@ -1566,12 +1592,10 @@ def _enviar_mensagem_whatsapp(telefone: str, mensagem: str) -> dict:
         return {"error": "CLICKSZAP_TOKEN não configurado"}
     hx = _httpx()
     try:
-        resp = hx.post(
-            f"{CLICKSZAP_URL}/messages",
+        resp = _post_clickszap(
+            hx, f"{CLICKSZAP_URL}/messages",
             auth=_bearer_auth(),
             json={"to": telefone, "text": mensagem},
-            timeout=15,
-            follow_redirects=True,
         )
         logger.info("[lembrete] POST /messages → %s: %s", resp.status_code, resp.text[:200])
         if resp.status_code not in (200, 201):
