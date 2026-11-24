@@ -2436,7 +2436,8 @@ fetch('/api/landing/publico/midia')
 </body>
 </html>"""
 
-_ROTAS_PUBLICAS = {"/", "/login", "/setup", "/loja", "/health", "/api/jogos"}
+_ROTAS_PUBLICAS = {"/", "/login", "/setup", "/loja", "/health", "/api/jogos",
+                   "/robots.txt", "/sitemap.xml"}
 _PREFIXOS_PUBLICOS = ("/catalogo", "/api/catalogo", "/api/imagens/", "/api/logo",
                       "/api/loja/", "/api/contrato-modelo", "/static/landing/",
                       "/api/landing/publico", "/api/recebimento/", "/api/cron/")
@@ -2455,6 +2456,36 @@ def verificar_auth():
 @app.route("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.route("/robots.txt")
+def robots_txt():
+    from flask import Response
+    base = _base_url()
+    txt = f"User-agent: *\nAllow: /\nSitemap: {base}/sitemap.xml\n"
+    return Response(txt, mimetype="text/plain")
+
+
+@app.route("/sitemap.xml")
+def sitemap_xml():
+    from flask import Response
+    base = _base_url()
+    urls = [base + "/", base + "/catalogo"]
+    for slug in CIDADES:
+        urls.append(f"{base}/catalogo?cidade={slug}")
+    # Uma URL por jogo (para o Google indexar cada jogo)
+    primeira_cidade = next(iter(CIDADES), "")
+    try:
+        for j in est.listar_jogos():
+            urls.append(f"{base}/catalogo?cidade={primeira_cidade}&jogo={j['id']}")
+    except Exception as e:
+        _log.warning("[sitemap] erro ao listar jogos: %s", e)
+    linhas = ['<?xml version="1.0" encoding="UTF-8"?>',
+              '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+    for u in urls:
+        linhas.append(f"  <url><loc>{u.replace('&', '&amp;')}</loc></url>")
+    linhas.append("</urlset>")
+    return Response("\n".join(linhas), mimetype="application/xml")
 
 
 @app.route("/")
@@ -5592,7 +5623,20 @@ CATALOGO_HTML = """<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Jogoteka — Catálogo de Jogos</title>
+  <title>{{ meta_title }}</title>
+  <meta name="description" content="{{ meta_desc }}">
+  <!-- Prévia rica ao compartilhar (WhatsApp, Instagram, Facebook) -->
+  <meta property="og:type" content="{{ og_type }}">
+  <meta property="og:site_name" content="Jogoteka">
+  <meta property="og:title" content="{{ meta_title }}">
+  <meta property="og:description" content="{{ meta_desc }}">
+  <meta property="og:image" content="{{ og_image }}">
+  <meta property="og:url" content="{{ og_url }}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ meta_title }}">
+  <meta name="twitter:description" content="{{ meta_desc }}">
+  <meta name="twitter:image" content="{{ og_image }}">
+  <script type="application/ld+json">{{ ld_json | safe }}</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -7030,6 +7074,77 @@ CATALOGO_HTML = """<!DOCTYPE html>
 """
 
 
+def _base_url():
+    """URL base absoluta (https em produção via X-Forwarded-Proto do Render)."""
+    proto = request.headers.get("X-Forwarded-Proto", request.scheme)
+    return f"{proto}://{request.host}"
+
+
+def _montar_meta_catalogo(cidade_nome, jogo=None):
+    """Monta título, descrição, imagem de prévia (Open Graph) e dados
+    estruturados (schema.org) do catálogo — genéricos ou do jogo específico."""
+    import json as _json
+    loja = getattr(ct, "NOME_LOJA", None) or "Jogoteka"
+    base = _base_url()
+    logo = base + "/api/logo"
+    cidade_txt = f" em {cidade_nome}" if cidade_nome else ""
+    page_url = request.url
+
+    titulo = f"{loja} — Alugue e Compre Jogos de Tabuleiro{cidade_txt}"
+    desc = (f"Alugue ou compre jogos de tabuleiro{cidade_txt}. "
+            f"Catálogo completo, para todas as idades. Diversão garantida!")
+    imagem = logo
+    og_type = "website"
+    ld = {
+        "@context": "https://schema.org",
+        "@type": "Store",
+        "name": loja,
+        "image": logo,
+        "url": base + "/",
+        "description": desc,
+    }
+
+    if jogo is not None:
+        nome = jogo["nome"]
+        resumo = (jogo["resumo"] or "").strip() if "resumo" in jogo.keys() else ""
+        img = jogo["imagem"] if "imagem" in jogo.keys() else None
+        imagem = (base + "/api/imagens/" + img) if img else logo
+        titulo = f"{nome} — Alugar ou Comprar | {loja}"
+        desc = resumo[:200] if resumo else f"{nome}: alugue ou compre na {loja}{cidade_txt}."
+        og_type = "product"
+        precos = [p for p in [jogo["preco_venda"] if "preco_venda" in jogo.keys() else None,
+                              jogo["loc1_valor"] if "loc1_valor" in jogo.keys() else None]
+                  if p]
+        editora = jogo["editora"] if "editora" in jogo.keys() else None
+        ld = {
+            "@context": "https://schema.org",
+            "@type": "Product",
+            "name": nome,
+            "image": imagem,
+            "description": desc,
+            "brand": {"@type": "Brand", "name": editora or loja},
+        }
+        if precos:
+            qtd = jogo["quantidade"] if "quantidade" in jogo.keys() else 0
+            ld["offers"] = {
+                "@type": "Offer",
+                "price": f"{min(precos):.2f}",
+                "priceCurrency": "BRL",
+                "availability": "https://schema.org/InStock" if (qtd or 0) > 0 else "https://schema.org/OutOfStock",
+                "url": page_url,
+            }
+
+    ld_json = _json.dumps(ld, ensure_ascii=False).replace("<", "\\u003c")
+    return {
+        "meta_title": titulo,
+        "meta_desc": desc,
+        "og_image": imagem,
+        "og_url": page_url,
+        "og_type": og_type,
+        "ld_json": ld_json,
+    }
+
+
 @app.route("/catalogo")
 def catalogo():
     cidade_slug = request.args.get("cidade", "").strip()
@@ -7042,11 +7157,23 @@ def catalogo():
     # cidade única ou slug válido → catálogo
     cidade_info = CIDADES.get(cidade_slug) or (list(CIDADES.values())[0] if CIDADES else None)
     cidade_slug_final = cidade_slug or (list(CIDADES.keys())[0] if CIDADES else "")
+
+    # Jogo específico (link compartilhado) → prévia rica
+    jogo = None
+    jogo_id = request.args.get("jogo", "").strip()
+    if jogo_id.isdigit():
+        try:
+            jogo = est.buscar_jogo(int(jogo_id))
+        except Exception:
+            jogo = None
+
+    meta = _montar_meta_catalogo(cidade_info["nome"] if cidade_info else "", jogo)
     return render_template_string(CATALOGO_HTML,
         cidade_slug=cidade_slug_final,
         cidade_nome=cidade_info["nome"] if cidade_info else "",
         cidade_wa=cidade_info["whatsapp"] if cidade_info else "",
-        cidades=CIDADES)
+        cidades=CIDADES,
+        **meta)
 
 
 @app.route("/api/catalogo")
