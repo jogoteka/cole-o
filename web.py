@@ -6105,8 +6105,22 @@ CATALOGO_HTML = """<!DOCTYPE html>
     }
     .banner-img-side .no-img{font-size:5rem;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}
     @media(max-width:700px){
+      /* Busca e filtros mais compactos (menos rolagem até os jogos) */
+      .busca-bar{padding:.7rem 1rem;gap:.5rem}
+      .busca-bar input{flex:1 1 100%;min-width:0}
+      .filtro-disp{flex:1 1 calc(50% - .25rem);min-width:0;font-size:.84rem;padding:.48rem .6rem}
+      .filtro-jog-wrap{flex:1 1 auto}
+      .filtros-count{flex:1 1 auto;text-align:right}
+      .cats-bar{padding:.6rem 1rem}
+      /* Card de destaque mais compacto → jogos aparecem antes */
+      .banner-section{margin:.9rem auto .4rem;padding:0 1rem}
+      .banner-card{min-height:auto}
+      .banner-content{padding:1.3rem 1.2rem;gap:.5rem}
       .banner-img-side{display:none}
-      .banner-nome{font-size:1.6rem}
+      .banner-nome{font-size:1.5rem}
+      .banner-tagline{font-size:.88rem;-webkit-line-clamp:2}
+      .banner-precos{padding-top:.5rem}
+      .banner-btns{margin-top:.6rem}
       .banner-btn-cta{width:100%;justify-content:center}
     }
 
