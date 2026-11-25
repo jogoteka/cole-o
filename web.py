@@ -1847,6 +1847,7 @@ LANDING_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="google-site-verification" content="bC48jesoBN54w4IQeBHUvFWlQEiVHC5L5ZCuAHJaskA" />
 <title>Jogoteka — Locação e Venda de Jogos de Tabuleiro</title>
 <meta name="description" content="Jogoteka: alugue e compre jogos de tabuleiro em Floripa e Porto Alegre. Catálogo online, atendimento todos os dias das 10h às 22h.">
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
