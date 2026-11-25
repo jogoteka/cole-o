@@ -5923,6 +5923,23 @@ CATALOGO_HTML = """<!DOCTYPE html>
       font-size:.92rem;box-shadow:0 8px 28px rgba(0,0,0,.28);opacity:0;pointer-events:none;
       transition:opacity .22s ease, transform .22s ease;z-index:9999}
     .cat-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+    /* ── Barra de confiança ── */
+    .trust-bar{display:flex;flex-wrap:wrap;gap:.5rem;justify-content:center;align-items:center;
+      background:#fff;border-bottom:1px solid var(--border);padding:.6rem 1rem}
+    .trust-item{display:inline-flex;align-items:center;gap:.35rem;font-size:.8rem;font-weight:700;
+      color:var(--text);background:#f7f8fc;border:1px solid var(--border);border-radius:999px;
+      padding:.3rem .7rem;white-space:nowrap;text-decoration:none}
+    .trust-google{border-color:#f2c200;background:#fffdf3}
+    .trust-google strong{color:#f09d00}
+    .trust-google:hover{background:#fff7da}
+    @media(max-width:700px){
+      .trust-bar{gap:.4rem;padding:.5rem .6rem}
+      .trust-item{font-size:.73rem;padding:.26rem .6rem}
+    }
+    /* Separador compra × locação no card */
+    .btns-sep{display:flex;align-items:center;gap:.5rem;color:var(--muted);
+      font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.6px;margin:.15rem 0}
+    .btns-sep::before,.btns-sep::after{content:"";flex:1;height:1px;background:var(--border)}
     /* ── Adicionar ao carrinho ── */
     .btn-add-cart{
       display:flex;align-items:center;justify-content:center;gap:.4rem;
@@ -6179,6 +6196,15 @@ CATALOGO_HTML = """<!DOCTYPE html>
     <span class="filtros-count" id="contagem"></span>
   </div>
   <div class="cats-bar" id="cats-bar"></div>
+
+  <div class="trust-bar">
+    <a class="trust-item trust-google" href="https://g.page/r/CSq-394orJrWECA" target="_blank" rel="noopener">⭐ <strong>5,0</strong> no Google</a>
+    <span class="trust-item">🚚 Entregamos na sua casa</span>
+    <span class="trust-item">🧼 Jogos higienizados</span>
+    <span class="trust-item">💳 Pagamento via PIX</span>
+    <span class="trust-item" id="trust-acervo">🎲 jogos no acervo</span>
+    <span class="trust-item">🗓️ Todos os dias, 10h–22h</span>
+  </div>
 
   <div class="banner-section" id="semana-section" style="display:none">
     <div class="carrossel-wrap" id="carrossel-wrap"
@@ -6784,6 +6810,7 @@ CATALOGO_HTML = """<!DOCTYPE html>
           </div>
           <div class="card-btns">
             ${btnComprar}
+            ${(temVenda && temLoc && opcLoc.length) ? '<div class="btns-sep">ou alugue</div>' : ""}
             ${btnAlugar}
           </div>
         </div>`;
@@ -6897,6 +6924,9 @@ CATALOGO_HTML = """<!DOCTYPE html>
       renderSemana();
       filtrar();
       abrirJogoDeLink();
+      // número real do acervo na barra de confiança
+      const _ta = document.getElementById('trust-acervo');
+      if(_ta) _ta.textContent = `🎲 ${todos.length} jogos no acervo`;
     }
 
     // Se a URL tiver ?jogo=ID (link compartilhado), rola até o jogo e o destaca
