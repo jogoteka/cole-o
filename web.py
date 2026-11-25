@@ -5742,6 +5742,24 @@ CATALOGO_HTML = """<!DOCTYPE html>
       gap:1.5rem
     }
 
+    /* ── Spinner de carregamento (roleta de tabuleiro) ── */
+    .cat-loading{grid-column:1/-1;display:flex;flex-direction:column;align-items:center;
+      justify-content:center;gap:1rem;padding:3rem 1rem;min-height:40vh}
+    .roleta{position:relative;width:84px;height:84px}
+    .roleta .wheel{width:100%;height:100%;border-radius:50%;
+      background:conic-gradient(#F10A0A 0 60deg,#ED940E 60deg 120deg,#17C629 120deg 180deg,
+        #0bc5ea 180deg 240deg,#7B20E1 240deg 300deg,#e84393 300deg 360deg);
+      box-shadow:0 6px 18px rgba(0,0,0,.16),inset 0 0 0 4px #fff}
+    .roleta .arrow{position:absolute;top:50%;left:50%;width:0;height:0;transform-origin:center;
+      animation:spinArrow 1.5s cubic-bezier(.45,.05,.4,.95) infinite}
+    .roleta .arrow::before{content:"";position:absolute;left:-7px;top:-38px;
+      border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:38px solid #1a202c}
+    .roleta .pin{position:absolute;top:50%;left:50%;width:15px;height:15px;border-radius:50%;
+      background:#1a202c;border:3px solid #fff;transform:translate(-50%,-50%);z-index:2}
+    .cat-loading .msg{color:var(--muted);font-size:.95rem;font-weight:700}
+    @keyframes spinArrow{0%{transform:rotate(0)}100%{transform:rotate(720deg)}}
+    @media(prefers-reduced-motion:reduce){.roleta .arrow{animation-duration:3s}}
+
     /* ── Card ── */
     .card{
       background:#ffffff;border-radius:16px;overflow:hidden;
@@ -5758,6 +5776,109 @@ CATALOGO_HTML = """<!DOCTYPE html>
                  0 4px 12px rgba(0,0,0,.08);
       border-color:var(--purple)
     }
+
+    /* ══ Card enxuto (vitrine) ══ */
+    .c-img{position:relative;width:100%;height:220px;background:#f7f8fc;
+      display:flex;align-items:center;justify-content:center;overflow:hidden}
+    .c-img img{width:100%;height:100%;object-fit:contain;padding:10px;
+      transition:transform .35s cubic-bezier(.34,1.56,.64,1)}
+    .card:hover .c-img img{transform:scale(1.05)}
+    .c-img .no-img{font-size:3.6rem;color:#cbd5e0}
+    .c-heart{position:absolute;top:.55rem;right:.55rem;z-index:3;
+      width:38px;height:38px;border-radius:50%;border:none;cursor:pointer;
+      background:rgba(255,255,255,.92);box-shadow:0 2px 8px rgba(0,0,0,.16);
+      display:flex;align-items:center;justify-content:center;font-size:1.1rem;
+      backdrop-filter:blur(3px);transition:transform .18s}
+    .c-heart:hover{transform:scale(1.14)}
+    .c-heart.on{background:#fff5f5}
+    .c-play{position:absolute;bottom:.55rem;left:.55rem;z-index:3;
+      border:none;cursor:pointer;color:#fff;background:rgba(26,26,46,.78);
+      border-radius:999px;padding:.3rem .7rem;font-size:.82rem;font-weight:800;
+      font-family:inherit;box-shadow:0 2px 8px rgba(0,0,0,.2);transition:background .18s}
+    .c-play:hover{background:rgba(26,26,46,.95)}
+    .c-body{padding:.9rem 1rem 1rem;flex:1;display:flex;flex-direction:column;gap:.35rem}
+    .c-nome{font-weight:800;font-size:1.02rem;line-height:1.25;color:var(--text)}
+    .c-editora{color:var(--muted);font-size:.78rem}
+    .c-chips{display:flex;gap:.35rem;flex-wrap:wrap;margin:.1rem 0}
+    .c-chip{background:#edf2f7;border-radius:6px;padding:2px 8px;
+      font-size:.72rem;color:#4a5568;white-space:nowrap}
+    .c-disp{display:inline-flex;align-items:center;gap:.4rem;font-size:.78rem;
+      font-weight:700;color:#276749}
+    .c-disp .c-dot{position:relative;width:9px;height:9px;border-radius:50%;background:var(--green)}
+    .c-disp .c-dot::after{content:"";position:absolute;inset:0;border-radius:50%;
+      background:var(--green);animation:dotPulse 1.8s ease-out infinite}
+    @keyframes dotPulse{0%{transform:scale(1);opacity:.55}70%{transform:scale(2.8);opacity:0}100%{transform:scale(2.8);opacity:0}}
+    .c-disp.off{color:#c53030}
+    .c-disp.off .c-dot{background:#e53e3e}
+    .c-disp.off .c-dot::after{display:none}
+    @media(prefers-reduced-motion:reduce){.c-disp .c-dot::after{animation:none}}
+    .c-foot{margin-top:auto;padding-top:.7rem;display:flex;flex-direction:column;gap:.55rem}
+    .c-preco{display:flex;align-items:baseline;gap:.5rem}
+    .c-preco-label{font-size:.68rem;font-weight:700;color:var(--muted);
+      text-transform:uppercase;letter-spacing:.3px;line-height:1.05}
+    .c-preco-val{font-size:1.35rem;font-weight:900;color:var(--purple);line-height:1}
+    .c-preco-unit{font-size:.78rem;font-weight:700;color:var(--muted);margin-left:.15rem}
+    .c-cta{width:100%;background:var(--purple);color:#fff;border:none;border-radius:11px;
+      padding:.72rem;font-size:.95rem;font-weight:800;font-family:inherit;cursor:pointer;
+      box-shadow:0 4px 14px rgba(123,32,225,.28);transition:background .18s,transform .12s}
+    .card:hover .c-cta{background:#6a15c7}
+    .c-cta:active{transform:scale(.98)}
+    .c-cta-sec{text-align:center;font-size:.8rem;font-weight:700;color:var(--muted)}
+
+    /* ══ Tela do jogo (modal de detalhe) ══ */
+    .modal-det{display:none;position:fixed;inset:0;z-index:300;
+      background:rgba(26,26,46,.6);backdrop-filter:blur(4px);
+      align-items:center;justify-content:center;padding:1rem}
+    .modal-det.open{display:flex}
+    .det-card{position:relative;background:#fff;border-radius:20px;overflow-y:auto;
+      width:100%;max-width:820px;max-height:92vh;box-shadow:0 30px 80px rgba(0,0,0,.35)}
+    #det-conteudo{display:flex;flex-direction:column}
+    @media(min-width:760px){ #det-conteudo{display:grid;grid-template-columns:44% 56%;align-items:stretch} }
+    .det-fechar{position:absolute;top:.7rem;right:.7rem;z-index:5;
+      width:40px;height:40px;border-radius:50%;border:none;cursor:pointer;
+      background:rgba(255,255,255,.92);box-shadow:0 2px 10px rgba(0,0,0,.2);
+      font-size:1.3rem;color:var(--text);display:flex;align-items:center;justify-content:center}
+    .det-fechar:hover{background:#fff}
+    .det-img{position:relative;background:#f7f8fc;min-height:260px;
+      display:flex;align-items:center;justify-content:center;overflow:hidden}
+    .det-img img{width:100%;height:100%;max-height:92vh;object-fit:contain;padding:14px}
+    .det-img .no-img{font-size:5rem;color:#cbd5e0}
+    .det-play{position:absolute;bottom:.8rem;left:.8rem;border:none;cursor:pointer;color:#fff;
+      background:rgba(26,26,46,.8);border-radius:999px;padding:.4rem .9rem;font-size:.85rem;
+      font-weight:800;font-family:inherit;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+    .det-play:hover{background:rgba(26,26,46,.96)}
+    .det-info{padding:1.6rem 1.6rem 1.8rem;display:flex;flex-direction:column;gap:.55rem}
+    .det-nome{font-family:'Fredoka One',cursive;font-size:1.6rem;line-height:1.15;color:var(--text)}
+    .det-editora{color:var(--muted);font-size:.9rem;margin-top:-.2rem}
+    .det-chips{display:flex;gap:.4rem;flex-wrap:wrap;margin:.2rem 0}
+    .det-resumo{font-size:.9rem;color:#4a5568;line-height:1.5;margin:.3rem 0 .1rem}
+    .det-precos{display:flex;flex-direction:column;gap:.9rem;margin-top:.5rem}
+    .det-grupo-tit{font-size:.8rem;font-weight:800;color:var(--muted);
+      text-transform:uppercase;letter-spacing:.4px;margin-bottom:.4rem}
+    .det-opcoes{display:flex;flex-direction:column;gap:.5rem}
+    .det-opc{display:flex;align-items:center;justify-content:space-between;gap:.6rem;
+      width:100%;cursor:pointer;font-family:inherit;border-radius:12px;padding:.8rem 1rem;
+      font-size:.95rem;font-weight:800;transition:transform .12s,box-shadow .14s,filter .14s}
+    .det-opc .det-opc-dias{font-weight:700}
+    .det-opc:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(0,0,0,.14)}
+    .det-opc:active{transform:scale(.99)}
+    .det-opc-alugar{background:#faf5ff;color:#6a15c7;border:2px solid #e9d8fd}
+    .det-opc-alugar:hover{border-color:var(--purple)}
+    .det-opc-comprar{background:#fff8f0;color:#b86a00;border:2px solid #fde3c4}
+    .det-opc-comprar:hover{border-color:var(--orange)}
+    .det-opc.sel{color:#fff}
+    .det-opc-alugar.sel{background:var(--purple);border-color:var(--purple)}
+    .det-opc-comprar.sel{background:var(--orange);border-color:var(--orange)}
+    .det-opc.sel .det-opc-dias::after{content:' ✓ no carrinho';font-weight:800;opacity:.95}
+    .det-sociais{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem;
+      padding-top:1rem;border-top:1px solid var(--border)}
+    .det-social{display:inline-flex;align-items:center;gap:.35rem;cursor:pointer;
+      font-family:inherit;font-size:.82rem;font-weight:700;color:#4a5568;
+      background:#f7f8fc;border:1px solid var(--border);border-radius:999px;
+      padding:.4rem .8rem;transition:background .15s,border-color .15s}
+    .det-social:hover{background:#edf2f7;border-color:#cbd5e0}
+    @media(max-width:759px){.det-card{max-height:94vh}.det-img{height:240px;min-height:240px}}
+
     .card-img{
       width:100%;height:220px;background:#f7f8fc;
       display:flex;align-items:center;justify-content:center;
@@ -6216,7 +6337,12 @@ CATALOGO_HTML = """<!DOCTYPE html>
     </div>
   </div>
 
-  <div class="catalogo" id="grid"></div>
+  <div class="catalogo" id="grid">
+    <div class="cat-loading">
+      <div class="roleta"><div class="wheel"></div><div class="arrow"></div><div class="pin"></div></div>
+      <div class="msg">Carregando jogos…</div>
+    </div>
+  </div>
 
   <footer>
     Jogoteka — {{ cidade_nome }} &mdash;
@@ -6257,15 +6383,16 @@ CATALOGO_HTML = """<!DOCTYPE html>
     let todos = [];
     let catAtiva = "";
 
-    /* ── Ícones de categoria: estilo linha fina 24×24 ── */
-    const SVG_TODOS      = `<svg viewBox="0 0 24 24" fill="none" stroke="#4a5568" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>`;
-    const SVG_ADULTO     = `<svg viewBox="0 0 24 24" fill="none" stroke="#4a5568" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h10Q20 8 17 13Q15 16 12 16Q9 16 7 13Q4 8 7 3Z"/><line x1="12" y1="16" x2="12" y2="21"/><line x1="8" y1="21" x2="16" y2="21"/></svg>`;
-    const SVG_EDUCATIVO  = `<svg viewBox="0 0 24 24" fill="none" stroke="#4a5568" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="6"/><path d="M9 15v3h6v-3"/><line x1="9" y1="18" x2="15" y2="18"/><line x1="10" y1="22" x2="14" y2="22"/></svg>`;
-    const SVG_FAMILIA    = `<svg viewBox="0 0 24 24" fill="none" stroke="#4a5568" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11L12 3l9 8v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22v-7h6v7"/></svg>`;
-    const SVG_INFANTIL   = `<svg viewBox="0 0 24 24" fill="none" stroke="#4a5568" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg>`;
-    const SVG_COOPERATIVO= `<svg viewBox="0 0 24 24" fill="none" stroke="#4a5568" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M19 7a4 4 0 0 1 0 7.75"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg>`;
-    const SVG_PARTYGAME  = `<svg viewBox="0 0 24 24" fill="none" stroke="#4a5568" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 20L13 4l6 16H7z"/><line x1="5" y1="20" x2="21" y2="20"/><circle cx="13" cy="4" r="1.5" fill="#4a5568" stroke="none"/><circle cx="4" cy="10" r="1" fill="#4a5568" stroke="none"/><circle cx="3" cy="16" r="1" fill="#4a5568" stroke="none"/><circle cx="21" cy="9" r="1" fill="#4a5568" stroke="none"/><circle cx="22" cy="15" r="1" fill="#4a5568" stroke="none"/></svg>`;
-    const SVG_ESTRATEGICO= `<svg viewBox="0 0 24 24" fill="none" stroke="#4a5568" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17h18v3H3z"/><polyline points="3,17 6,8 12,13 18,6 21,17"/><circle cx="6" cy="8" r="1.5" fill="#4a5568" stroke="none"/><circle cx="12" cy="13" r="1.5" fill="#4a5568" stroke="none"/><circle cx="18" cy="6" r="1.5" fill="#4a5568" stroke="none"/></svg>`;
+    /* ── Ícones de categoria: estilo colorido chapado (Estilo C) 24×24 ── */
+    const SVG_TODOS      = `<svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7.5" height="7.5" rx="2" fill="#7B20E1"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2" fill="#ED940E"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2" fill="#17C629"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2" fill="#F10A0A"/></svg>`;
+    const SVG_ADULTO     = `<svg viewBox="0 0 24 24" fill="none"><path d="M7 3h10q2.3 5-.6 9Q15 14.5 12 14.5Q9 14.5 7.6 12Q4.7 8 7 3Z" fill="#7B20E1"/><rect x="11" y="14" width="2" height="6" rx="1" fill="#5a13a8"/><rect x="8" y="20" width="8" height="2" rx="1" fill="#5a13a8"/></svg>`;
+    const SVG_EDUCATIVO  = `<svg viewBox="0 0 24 24" fill="none"><path d="M12 4 22 8.5 12 13 2 8.5z" fill="#17C629"/><path d="M6.5 10.5v4.2c0 1.3 2.5 2.6 5.5 2.6s5.5-1.3 5.5-2.6v-4.2L12 13.4z" fill="#0f8f1e"/><rect x="21.2" y="8.5" width="1.5" height="5" rx=".75" fill="#0f8f1e"/></svg>`;
+    const SVG_FAMILIA    = `<svg viewBox="0 0 24 24" fill="none"><g fill="#ED940E"><circle cx="8" cy="7" r="3.2"/><path d="M3.2 20.5v-2.3A4.8 4.8 0 0 1 8 13.4a4.8 4.8 0 0 1 4.8 4.8v2.3z"/></g><g fill="#F10A0A"><circle cx="17.2" cy="10" r="2.4"/><path d="M13.6 20.5v-1.6a3.6 3.6 0 0 1 7.2 0v1.6z"/></g></svg>`;
+    const SVG_INFANTIL   = `<svg viewBox="0 0 24 24" fill="none"><g fill="#b4793b"><circle cx="6.5" cy="7" r="2.6"/><circle cx="17.5" cy="7" r="2.6"/><circle cx="12" cy="12.5" r="6.2"/></g><g fill="#5a3410"><circle cx="9.8" cy="11.3" r="1.1"/><circle cx="14.2" cy="11.3" r="1.1"/></g><path d="M10.3 15c1 .9 2.4 .9 3.4 0" stroke="#5a3410" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>`;
+    const SVG_COOPERATIVO= `<svg viewBox="0 0 24 24" fill="none"><g fill="#17C629"><circle cx="8" cy="8" r="3.2"/><path d="M2.6 20.5v-2A4.8 4.8 0 0 1 7.4 13.7h1A4.8 4.8 0 0 1 13.2 18.5v2z"/></g><g fill="#7B20E1"><circle cx="16.8" cy="9" r="2.8"/><path d="M13.6 20.5v-1.6a3.9 3.9 0 0 1 7.8 0v1.6z"/></g></svg>`;
+    const SVG_PARTYGAME  = `<svg viewBox="0 0 24 24" fill="none"><path d="M3 21l6-14 7.2 7.2z" fill="#7B20E1"/><path d="M9 7l7.2 7.2-7 2z" fill="#5a13a8"/><circle cx="16" cy="4" r="1.2" fill="#F10A0A"/><circle cx="20" cy="7.5" r="1.2" fill="#ED940E"/><circle cx="19" cy="12" r="1.2" fill="#17C629"/><circle cx="13.5" cy="9" r="1.2" fill="#ED940E"/></svg>`;
+    const SVG_ESTRATEGICO= `<svg viewBox="0 0 24 24" fill="none"><path d="M6.5 6h2v2h2.5V6h2.5v2h2.5V6h2v4.5H6.5z" fill="#F10A0A"/><path d="M8.3 11h7.4l1 9H7.3z" fill="#c20808"/><rect x="5.5" y="20" width="13" height="1.8" rx=".9" fill="#F10A0A"/></svg>`;
+    const SVG_DADO       = `<svg viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="4" fill="#7B20E1"/><circle cx="9" cy="9" r="1.5" fill="#fff"/><circle cx="15" cy="9" r="1.5" fill="#fff"/><circle cx="9" cy="15" r="1.5" fill="#fff"/><circle cx="15" cy="15" r="1.5" fill="#fff"/><circle cx="12" cy="12" r="1.5" fill="#fff"/></svg>`;
 
     // Renomeia categorias para exibição nos botões de filtro
     const CAT_LABELS = {
@@ -6318,7 +6445,7 @@ CATALOGO_HTML = """<!DOCTYPE html>
       "família": SVG_FAMILIA,"familia": SVG_FAMILIA,
       "cooperativo": SVG_COOPERATIVO,"cooperativos": SVG_COOPERATIVO,
       "infantil": SVG_INFANTIL,"infantis": SVG_INFANTIL,
-      "party game": SVG_PARTYGAME,"party games": SVG_PARTYGAME,"festa":SVG_PARTYGAME,"jogo de festa":SVG_PARTYGAME,
+      "party game": SVG_PARTYGAME,"party games": SVG_PARTYGAME,"party":SVG_PARTYGAME,"partygame":SVG_PARTYGAME,"festa":SVG_PARTYGAME,"festas":SVG_PARTYGAME,"jogo de festa":SVG_PARTYGAME,"jogos de festa":SVG_PARTYGAME,
       "temático":"🧙","tematico":"🧙","temáticos":"🧙","tematicos":"🧙",
       "abstrato":"🔷","abstratos":"🔷",
       "rpg":"🐉",
@@ -6336,8 +6463,8 @@ CATALOGO_HTML = """<!DOCTYPE html>
     };
 
     function iconCat(cat){
-      if(!cat) return "🎮";
-      return CAT_ICONS[cat.toLowerCase()] || "🎮";
+      if(!cat) return SVG_DADO;
+      return CAT_ICONS[cat.toLowerCase()] || SVG_DADO;
     }
 
     function renderCats(){
@@ -6735,85 +6862,129 @@ CATALOGO_HTML = """<!DOCTYPE html>
     }
 
     function buildCard(j){
-      const disp  = j.quantidade > 0;
+      const disp = j.quantidade > 0;
       const temVenda = j.preco_venda != null;
-      const temLoc   = j.loc1_valor != null || j.loc2_valor != null || j.loc3_valor != null;
+      const opcLoc = [];
+      if(j.loc1_dias && j.loc1_valor) opcLoc.push([j.loc1_dias, j.loc1_valor]);
+      if(j.loc2_dias && j.loc2_valor) opcLoc.push([j.loc2_dias, j.loc2_valor]);
+      if(j.loc3_dias && j.loc3_valor) opcLoc.push([j.loc3_dias, j.loc3_valor]);
+      const temLoc = opcLoc.length > 0;
+      const fav = _cadToken && _favSet.has(j.id);
 
+      const chips = [];
+      if(j.min_jogadores || j.max_jogadores) chips.push(`👥 ${j.min_jogadores||"?"}–${j.max_jogadores||"?"}`);
+      if(j.tempo_jogo) chips.push(`⏱ ${j.tempo_jogo} min`);
+      if(j.faixa_etaria) chips.push(`👶 ${j.faixa_etaria}`);
+      const chipsHtml = chips.map(c=>`<span class="c-chip">${c}</span>`).join("");
+
+      let precoHtml = "", ctaLabel = "Ver jogo", ctaSec = "";
+      if(temLoc){
+        const cheapest = opcLoc.reduce((a,b)=> b[1]<a[1] ? b : a);
+        precoHtml = `<div class="c-preco"><span class="c-preco-label">Aluguel<br>desde</span><span class="c-preco-val"><b>${fmtVal(cheapest[1])}</b><span class="c-preco-unit">/${cheapest[0]} dia${cheapest[0]>1?'s':''}</span></span></div>`;
+        ctaLabel = "Alugar este jogo";
+        ctaSec = temVenda ? `<div class="c-cta-sec">ou comprar — ${fmtVal(j.preco_venda)}</div>` : "";
+      } else if(temVenda){
+        precoHtml = `<div class="c-preco"><span class="c-preco-label">Comprar<br>por</span><span class="c-preco-val"><b>${fmtVal(j.preco_venda)}</b></span></div>`;
+        ctaLabel = "Comprar este jogo";
+      }
+
+      const encUrl = j.video_url ? encodeURIComponent(j.video_url) : "";
+      const nomeSafe = (j.nome||"").replace(/'/g,"\\'");
+      return `
+        <div class="card" id="jogo-${j.id}" data-nome="${j.nome.toLowerCase()}" data-cat="${(j.categoria||"").toLowerCase()}" data-disp="${disp?1:0}" onclick="abrirDetalhe(${j.id})">
+          <div class="c-img">
+            ${j.imagem ? `<img src="/api/imagens/${j.imagem}" alt="${j.nome}" onerror="this.remove()">` : `<span class="no-img">🎲</span>`}
+            ${buildBadges(j)}
+            <button type="button" class="c-heart${fav?' on':''}" title="Favoritar" onclick="event.stopPropagation();toggleFav(${j.id},this)"><span class="fav-icon">${fav?'❤️':'🤍'}</span></button>
+            ${j.video_url ? `<button type="button" class="c-play" title="Ver vídeo" onclick="event.stopPropagation();abrirVideoCat('${encUrl}','${nomeSafe}')">▶</button>` : ""}
+          </div>
+          <div class="c-body">
+            <div class="c-nome">${j.nome}</div>
+            ${j.editora ? `<div class="c-editora">${j.editora}</div>` : ""}
+            <div class="c-chips">${chipsHtml}</div>
+            <div class="c-disp${disp?'':' off'}"><span class="c-dot"></span> ${disp?'Disponível':'Indisponível'}</div>
+            <div class="c-foot">
+              ${precoHtml}
+              <button type="button" class="c-cta">${ctaLabel}</button>
+              ${ctaSec}
+            </div>
+          </div>
+        </div>`;
+    }
+
+    // ── Tela do jogo (modal de detalhe) ─────────────────────────────────────
+    function abrirDetalhe(id){
+      const j = todos.find(x=>x.id===id);
+      if(!j) return;
+      window._detJogo = j;
+      const disp = j.quantidade > 0;
+      const temVenda = j.preco_venda != null;
       const opcLoc = [];
       if(j.loc1_dias && j.loc1_valor) opcLoc.push([j.loc1_dias, j.loc1_valor]);
       if(j.loc2_dias && j.loc2_valor) opcLoc.push([j.loc2_dias, j.loc2_valor]);
       if(j.loc3_dias && j.loc3_valor) opcLoc.push([j.loc3_dias, j.loc3_valor]);
 
-      const jogadores = (j.min_jogadores || j.max_jogadores)
-        ? `👥 ${j.min_jogadores||"?"}–${j.max_jogadores||"?"}` : "";
-      const tempo = j.tempo_jogo ? `⏱ ${j.tempo_jogo} min` : "";
+      const chips = [];
+      if(j.min_jogadores || j.max_jogadores) chips.push(`👥 ${j.min_jogadores||"?"}–${j.max_jogadores||"?"} jogadores`);
+      if(j.tempo_jogo) chips.push(`⏱ ${j.tempo_jogo} min`);
+      if(j.faixa_etaria) chips.push(`👶 ${j.faixa_etaria}`);
+      if(j.categoria) chips.push(`🎯 ${j.categoria}`);
 
+      const fav = _cadToken && _favSet.has(j.id);
+      const encUrl = j.video_url ? encodeURIComponent(j.video_url) : "";
+      const nomeSafe = (j.nome||"").replace(/'/g,"\\'");
 
-      const emCart = _cart.find(c=>c.id===j.id);
-      const selCompra = emCart && emCart.tipo==='comprar';
-      const btnComprar = temVenda
-        ? `<button class="preco-tag preco-tag-comprar${selCompra?' sel':''}" onclick="addDireto(${j.id},'comprar',null,${j.preco_venda},this)">🛒 Comprar — ${fmtVal(j.preco_venda)}${selCompra?'<span class="sel-check">✓ no carrinho</span>':''}</button>`
-        : "";
-
-      const btnAlugar = temLoc && opcLoc.length
-        ? opcLoc.map(([dias,val])=>{
-            const sel = emCart && emCart.tipo==='alugar' && emCart.dias===dias;
-            return `<button class="preco-tag preco-tag-alugar${sel?' sel':''}" onclick="addDireto(${j.id},'alugar',${dias},${val},this)">🔑 Alugar ${dias} dia${dias>1?"s":""} — ${fmtVal(val)}${sel?'<span class="sel-check">✓ no carrinho</span>':''}</button>`;
-          }).join("") : "";
-
-      const dispBadge = disp
-        ? `<span class="card-status status-disp">✅ Disponível</span>`
-        : `<span class="card-status status-indisp">❌ Indisponível</span>`;
-
-      const locHtml = opcLoc.length
-        ? `<div class="preco-loc">
-             <div class="preco-loc-titulo">🔑 Locação</div>
-             ${opcLoc.map(([dias,val])=>`<div class="preco-loc-item"><span class="dias">${dias} dia${dias>1?"s":""}</span><span class="val">${fmtVal(val)}</span></div>`).join("")}
-           </div>`
-        : "";
-
-      const catTagline = j.categoria ? (CAT_TAGLINES[j.categoria.toLowerCase()]||null) : null;
-      const metaTags = [
-        catTagline
-          ? `<span class="tag tagline">${catTagline}</span>`
-          : (j.categoria ? `<span class="tag cat">${j.categoria}</span>` : ""),
-        jogadores ? `<span class="tag">${jogadores}</span>` : "",
-        tempo ? `<span class="tag">${tempo}</span>` : "",
-        j.faixa_etaria ? `<span class="tag">👶 ${j.faixa_etaria}</span>` : "",
-      ].filter(Boolean).join("");
-
-      return `
-        <div class="card" id="jogo-${j.id}" data-nome="${j.nome.toLowerCase()}" data-cat="${(j.categoria||"").toLowerCase()}" data-disp="${disp?1:0}">
-          <div class="card-img-wrap">
-            ${j.imagem ? `<img src="/api/imagens/${j.imagem}" alt="${j.nome}" onerror="this.parentElement.innerHTML='<span class=no-img>🎲</span>'">` : `<span class="no-img">🎲</span>`}
-            ${buildBadges(j)}
+      const alugarHtml = opcLoc.length ? `
+        <div class="det-grupo">
+          <div class="det-grupo-tit">🔑 Alugar por</div>
+          <div class="det-opcoes">
+            ${opcLoc.map(([dias,val])=>`<button type="button" class="det-opc det-opc-alugar" onclick="detAdd('alugar',${dias},${val},this)"><span class="det-opc-dias">${dias} dia${dias>1?'s':''}</span><strong>${fmtVal(val)}</strong></button>`).join("")}
           </div>
-          <div class="card-body">
-            <div class="card-nome">${j.nome}</div>
-            ${j.editora ? `<div class="card-editora">${j.editora}</div>` : ""}
-            <div class="card-meta">${metaTags}</div>
-            ${j.resumo ? `<div class="resumo-wrap"><div class="card-resumo" id="resumo-${j.id}">${j.resumo}</div><button class="btn-resumo" id="btn-resumo-${j.id}" onclick="toggleResumo(${j.id})">ver mais ▾</button></div>` : ""}
-            <div class="card-acoes">
-              <div class="card-acoes-row1">
-                ${dispBadge}
-                <div style="display:flex;align-items:center;gap:.4rem">
-                  ${buildCurtirBtn(j)}
-                  ${buildFavBtn(j)}
-                  ${buildShareBtn(j)}
-                </div>
-              </div>
-              ${j.video_url ? `<button class="btn-video-cat" onclick="abrirVideoCat('${encodeURIComponent(j.video_url)}','${j.nome.replace(/'/g,'')}')">▶ Ver vídeo</button>` : ""}
-            </div>
-            <div class="card-precos">
-              ${calcAncora(j)}
-            </div>
+        </div>` : "";
+      const comprarHtml = temVenda ? `
+        <div class="det-grupo">
+          <div class="det-grupo-tit">🛒 Comprar</div>
+          <button type="button" class="det-opc det-opc-comprar" onclick="detAdd('comprar',null,${j.preco_venda},this)"><span class="det-opc-dias">Levar para sempre</span><strong>${fmtVal(j.preco_venda)}</strong></button>
+        </div>` : "";
+
+      document.getElementById('det-conteudo').innerHTML = `
+        <div class="det-img">
+          ${j.imagem ? `<img src="/api/imagens/${j.imagem}" alt="${j.nome}" onerror="this.remove()">` : `<span class="no-img">🎲</span>`}
+          ${j.video_url ? `<button type="button" class="det-play" onclick="abrirVideoCat('${encUrl}','${nomeSafe}')">▶ Ver vídeo</button>` : ""}
+        </div>
+        <div class="det-info">
+          <div class="det-nome">${j.nome}</div>
+          ${j.editora ? `<div class="det-editora">${j.editora}</div>` : ""}
+          <div class="det-chips">${chips.map(c=>`<span class="c-chip">${c}</span>`).join("")}</div>
+          <div class="c-disp${disp?'':' off'}"><span class="c-dot"></span> ${disp?'Disponível':'Indisponível no momento'}</div>
+          ${j.resumo ? `<p class="det-resumo">${j.resumo}</p>` : ""}
+          ${calcAncora(j)}
+          <div class="det-precos">
+            ${alugarHtml}
+            ${comprarHtml}
           </div>
-          <div class="card-btns">
-            ${btnComprar}
-            ${(temVenda && temLoc && opcLoc.length) ? '<div class="btns-sep">ou alugue</div>' : ""}
-            ${btnAlugar}
+          <div class="det-sociais">
+            <button type="button" class="det-social" onclick="toggleFav(${j.id},this)"><span class="fav-icon">${fav?'❤️':'🤍'}</span> Favoritar</button>
+            <button type="button" class="det-social" onclick="curtir(${j.id},this)">👍 Curtir</button>
+            <button type="button" class="det-social" onclick="compartilharJogo(${j.id})">📲 Compartilhar</button>
           </div>
         </div>`;
+      document.getElementById('modal-detalhe').classList.add('open');
+      document.querySelector('.det-card').scrollTop = 0;
+    }
+
+    function detAdd(tipo, dias, valor, btn){
+      const j = window._detJogo;
+      if(!j) return;
+      addToCart(j, {tipo, dias, valor});
+      document.querySelectorAll('#det-conteudo .det-opc').forEach(b=>b.classList.remove('sel'));
+      if(btn) btn.classList.add('sel');
+      catToast(tipo==='comprar' ? '🛒 Adicionado ao carrinho!' : '🔑 Adicionado ao carrinho!');
+    }
+
+    function fecharDetalhe(e){
+      if(e && e.target !== document.getElementById('modal-detalhe')) return;
+      document.getElementById('modal-detalhe').classList.remove('open');
     }
 
     let _jogVal = 0;  // 0 = sem filtro
@@ -7145,6 +7316,14 @@ CATALOGO_HTML = """<!DOCTYPE html>
   <div class="video-wrap-cat">
     <button class="video-fechar" onclick="fecharVideoCat(event)">✕</button>
     <div id="video-overlay-player"></div>
+  </div>
+</div>
+
+<!-- Tela do jogo (modal de detalhe) -->
+<div class="modal-det" id="modal-detalhe" onclick="fecharDetalhe(event)">
+  <div class="det-card">
+    <button class="det-fechar" onclick="fecharDetalhe()" aria-label="Fechar">✕</button>
+    <div id="det-conteudo"></div>
   </div>
 </div>
 
