@@ -2437,7 +2437,8 @@ fetch('/api/landing/publico/midia')
 </html>"""
 
 _ROTAS_PUBLICAS = {"/", "/login", "/setup", "/loja", "/health", "/api/jogos",
-                   "/robots.txt", "/sitemap.xml"}
+                   "/robots.txt", "/sitemap.xml",
+                   "/googled4f9dc64d6d5e217.html"}
 _PREFIXOS_PUBLICOS = ("/catalogo", "/api/catalogo", "/api/imagens/", "/api/logo",
                       "/api/loja/", "/api/contrato-modelo", "/static/landing/",
                       "/api/landing/publico", "/api/recebimento/", "/api/cron/")
@@ -2456,6 +2457,13 @@ def verificar_auth():
 @app.route("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.route("/googled4f9dc64d6d5e217.html")
+def google_site_verification():
+    from flask import Response
+    return Response("google-site-verification: googled4f9dc64d6d5e217.html",
+                    mimetype="text/html")
 
 
 @app.route("/robots.txt")
