@@ -5906,12 +5906,23 @@ CATALOGO_HTML = """<!DOCTYPE html>
     /* ── Etiquetas de preço (não clicáveis) ── */
     .card-btns{padding:.8rem 1.1rem;display:flex;gap:.5rem;flex-direction:column}
     .preco-tag{
-      display:flex;align-items:center;gap:.5rem;
-      border-radius:10px;padding:.55rem .9rem;
-      font-family:inherit;font-size:.85rem;font-weight:700;user-select:none
+      display:flex;align-items:center;gap:.5rem;width:100%;border:none;cursor:pointer;
+      border-radius:10px;padding:.62rem .9rem;
+      font-family:inherit;font-size:.85rem;font-weight:700;user-select:none;
+      transition:transform .12s ease, filter .12s ease, box-shadow .12s ease;
     }
+    .preco-tag:hover{filter:brightness(1.08);transform:translateY(-1px);box-shadow:0 5px 14px rgba(0,0,0,.18)}
+    .preco-tag:active{transform:translateY(0) scale(.98)}
+    .preco-tag .sel-check{margin-left:auto;font-weight:900;white-space:nowrap}
+    .preco-tag.sel{box-shadow:0 0 0 3px rgba(255,255,255,.65) inset, 0 4px 12px rgba(0,0,0,.18)}
     .preco-tag-comprar{background:var(--orange);color:#fff}
     .preco-tag-alugar{background:var(--wa);color:#fff}
+    /* Aviso rápido (toast) do catálogo */
+    .cat-toast{position:fixed;left:50%;bottom:92px;transform:translateX(-50%) translateY(18px);
+      background:#1a1a2e;color:#fff;padding:.7rem 1.25rem;border-radius:999px;font-weight:800;
+      font-size:.92rem;box-shadow:0 8px 28px rgba(0,0,0,.28);opacity:0;pointer-events:none;
+      transition:opacity .22s ease, transform .22s ease;z-index:9999}
+    .cat-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
     /* ── Adicionar ao carrinho ── */
     .btn-add-cart{
       display:flex;align-items:center;justify-content:center;gap:.4rem;
@@ -6698,14 +6709,17 @@ CATALOGO_HTML = """<!DOCTYPE html>
       const tempo = j.tempo_jogo ? `⏱ ${j.tempo_jogo} min` : "";
 
 
+      const emCart = _cart.find(c=>c.id===j.id);
+      const selCompra = emCart && emCart.tipo==='comprar';
       const btnComprar = temVenda
-        ? `<span class="preco-tag preco-tag-comprar">🛒 Comprar — ${fmtVal(j.preco_venda)}</span>`
+        ? `<button class="preco-tag preco-tag-comprar${selCompra?' sel':''}" onclick="addDireto(${j.id},'comprar',null,${j.preco_venda},this)">🛒 Comprar — ${fmtVal(j.preco_venda)}${selCompra?'<span class="sel-check">✓ no carrinho</span>':''}</button>`
         : "";
 
       const btnAlugar = temLoc && opcLoc.length
-        ? opcLoc.map(([dias,val])=>
-            `<span class="preco-tag preco-tag-alugar">🔑 Alugar ${dias} dia${dias>1?"s":""} — ${fmtVal(val)}</span>`
-          ).join("") : "";
+        ? opcLoc.map(([dias,val])=>{
+            const sel = emCart && emCart.tipo==='alugar' && emCart.dias===dias;
+            return `<button class="preco-tag preco-tag-alugar${sel?' sel':''}" onclick="addDireto(${j.id},'alugar',${dias},${val},this)">🔑 Alugar ${dias} dia${dias>1?"s":""} — ${fmtVal(val)}${sel?'<span class="sel-check">✓ no carrinho</span>':''}</button>`;
+          }).join("") : "";
 
       const dispBadge = disp
         ? `<span class="card-status status-disp">✅ Disponível</span>`
@@ -6757,7 +6771,6 @@ CATALOGO_HTML = """<!DOCTYPE html>
           <div class="card-btns">
             ${btnComprar}
             ${btnAlugar}
-            ${(temVenda || (temLoc && opcLoc.length)) ? `<button class="btn-add-cart" data-id="${j.id}" onclick="abrirPickerById(${j.id})">+ Adicionar ao carrinho</button>` : ""}
           </div>
         </div>`;
     }
@@ -6965,14 +6978,53 @@ CATALOGO_HTML = """<!DOCTYPE html>
       });
     }
 
+    // Clique direto no preço → adiciona ao carrinho aquela opção específica
+    function addDireto(id, tipo, dias, valor, btn){
+      const j = todos.find(x=>x.id===id);
+      if(!j) return;
+      addToCart(j, {tipo, dias, valor});
+      // atualiza o destaque só deste card (sem re-renderizar a lista)
+      const card = document.getElementById('jogo-'+id);
+      if(card){
+        card.querySelectorAll('.preco-tag').forEach(b=>{
+          b.classList.remove('sel');
+          const c = b.querySelector('.sel-check'); if(c) c.remove();
+        });
+      }
+      if(btn){
+        btn.classList.add('sel');
+        if(!btn.querySelector('.sel-check'))
+          btn.insertAdjacentHTML('beforeend','<span class="sel-check">✓ no carrinho</span>');
+      }
+      catToast(tipo==='comprar' ? '🛒 Adicionado ao carrinho!' : '🔑 Adicionado ao carrinho!');
+    }
+
+    let _catToastTimer;
+    function catToast(msg){
+      let el = document.getElementById('catToast');
+      if(!el){
+        el = document.createElement('div');
+        el.id = 'catToast'; el.className = 'cat-toast';
+        document.body.appendChild(el);
+      }
+      el.textContent = msg;
+      el.classList.add('show');
+      clearTimeout(_catToastTimer);
+      _catToastTimer = setTimeout(()=>el.classList.remove('show'), 2200);
+    }
+
     function removeFromCart(id){
       _cart = _cart.filter(c=>c.id !== id);
       atualizarCartUI();
       renderDrawer();
-      document.querySelectorAll(`.btn-add-cart[data-id="${id}"]`).forEach(btn=>{
-        btn.classList.remove('no-carrinho');
-        btn.textContent = '+ Adicionar ao carrinho';
-      });
+      // limpa o destaque dos preços deste card
+      const card = document.getElementById('jogo-'+id);
+      if(card){
+        card.querySelectorAll('.preco-tag').forEach(b=>{
+          b.classList.remove('sel');
+          const c = b.querySelector('.sel-check'); if(c) c.remove();
+        });
+      }
     }
 
     function atualizarCartUI(){
